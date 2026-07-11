@@ -12,7 +12,11 @@
   </head>
   <body>
     <div id="app"></div>
-    <script>window.API_BASE = 'http://localhost:4000/api';</script>
+    <script>
+      const protocol = window.location.protocol || 'http:';
+      const host = window.location.hostname || 'localhost';
+      window.API_BASE = window.API_BASE || `${protocol}//${host}:4000/api`;
+    </script>
     <script src="app.js"></script>
   </body>
 </html>

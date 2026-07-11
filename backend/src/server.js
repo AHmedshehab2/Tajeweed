@@ -23,9 +23,10 @@ app.use('/api/upload', uploadRoutes);
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 const PORT = Number(process.env.PORT || 4000);
+const HOST = process.env.HOST || '0.0.0.0';
 
 function startServer(port) {
-  const server = app.listen(port, () => console.log(`Tajweed LMS API running on :${port}`));
+  const server = app.listen(port, HOST, () => console.log(`Tajweed LMS API running on ${HOST}:${port}`));
 
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
