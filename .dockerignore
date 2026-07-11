@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+npm-debug.log
+backend/data/*
+backend/uploads/*
+!backend/uploads/.gitkeep
+.env
+backend/.env
+frontend/.env
+.git
+.gitignore
+.dockerignore
+README.md
+DEPLOY.md

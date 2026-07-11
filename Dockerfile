@@ -1,14 +1,18 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache openssl libc6-compat
+
 WORKDIR /app
 
 # Install backend dependencies
 COPY backend/package.json backend/package-lock.json* ./backend/
+COPY backend/prisma/ ./backend/prisma/
 RUN cd backend && npm ci --omit=dev
 
 # Copy application code
 COPY backend ./backend
 COPY frontend ./frontend
+COPY docker/start.js ./start.js
 
 WORKDIR /app/backend
 
@@ -21,4 +25,4 @@ RUN mkdir -p data uploads && npx prisma generate
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]
+CMD ["node", "/app/start.js"]

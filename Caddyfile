@@ -1,0 +1,8 @@
+:80 {
+    reverse_proxy tajweed:4000
+}
+
+# After you have a domain, replace :80 with your domain:
+# yourdomain.com {
+#     reverse_proxy tajweed:4000
+# }

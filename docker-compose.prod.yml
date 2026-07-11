@@ -1,0 +1,39 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - tajweed
+    restart: unless-stopped
+
+  tajweed:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: "file:./data/prod.db"
+      JWT_SECRET: ${JWT_SECRET}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-*}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:-}
+    volumes:
+      - tajweed-data:/app/backend/data
+      - tajweed-uploads:/app/backend/uploads
+    expose:
+      - "4000"
+    restart: unless-stopped
+
+volumes:
+  tajweed-data:
+  tajweed-uploads:
+  caddy-data:
+  caddy-config:

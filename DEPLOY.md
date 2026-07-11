@@ -39,25 +39,93 @@ Data and uploads are stored in Docker volumes and survive restarts.
 
 ## Deploy to a VPS (Ubuntu + Docker)
 
-1. Copy the project to your server (git clone or zip).
-2. Set environment variables in `.env` or export them:
+### 1. Install Docker on your VPS
 
-   ```bash
-   export JWT_SECRET="your-long-random-secret"
-   export CLIENT_ORIGIN="https://yourdomain.com"
-   ```
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Log out and back in for the group change to take effect
+```
 
-3. Run `docker compose up --build -d`.
-4. Seed once: `docker compose exec tajweed npm run db:seed`
-5. Put **Nginx** or **Caddy** in front for HTTPS on port 443, proxying to `localhost:4000`.
+### 2. Copy the project to your VPS
 
-Example Caddy (`Caddyfile`):
+```bash
+git clone <your-repo-url> tajweed
+cd tajweed
+```
+
+### 3. Set environment variables
+
+```bash
+export JWT_SECRET="$(openssl rand -hex 32)"
+export CLIENT_ORIGIN="http://YOUR_VPS_IP"
+echo "JWT_SECRET=$JWT_SECRET" > .env
+echo "CLIENT_ORIGIN=$CLIENT_ORIGIN" >> .env
+```
+
+### 4. Start everything (app + Caddy for HTTPS)
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+This starts two containers:
+- **tajweed** — the app on port 4000 (internal)
+- **caddy** — reverse proxy on ports 80/443
+
+The database is **auto-seeded** on first run.
+
+### 5. Open in browser
+
+Go to `http://YOUR_VPS_IP`
+
+| Account | Email | Password |
+|---------|-------|----------|
+| Student | ahmed@example.com | student |
+| Admin | admin@example.com | admin |
+
+### 6. Add a domain (optional, for HTTPS)
+
+1. Point your domain's DNS to your VPS IP
+2. Edit `Caddyfile` and replace `:80` with your domain:
 
 ```
 yourdomain.com {
-    reverse_proxy localhost:4000
+    reverse_proxy tajweed:4000
 }
 ```
+
+3. Update `CLIENT_ORIGIN`:
+
+```bash
+echo "CLIENT_ORIGIN=https://yourdomain.com" > .env
+```
+
+4. Restart Caddy:
+
+```bash
+docker compose -f docker-compose.prod.yml restart caddy
+```
+
+HTTPS is automatic — Caddy fetches a free Let's Encrypt certificate.
+
+### 7. Manage the app
+
+```bash
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Restart app
+docker compose -f docker-compose.prod.yml restart tajweed
+
+# Stop everything
+docker compose -f docker-compose.prod.yml down
+
+# Rebuild after code changes
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Data is stored in Docker volumes (`tajweed-data`, `tajweed-uploads`) and survives restarts.
 
 ---
 

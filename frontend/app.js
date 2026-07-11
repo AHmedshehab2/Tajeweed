@@ -47,6 +47,9 @@ const isAdmin = (session) =>
 const TODAY = new Date().toISOString().slice(0, 10);
 const HOME_PHOTO = "home.png";
 
+let supabaseConfig = { enabled: false };
+let supabaseClient = null;
+
 function getToken() {
   return localStorage.getItem(STORAGE.token);
 }
@@ -143,6 +146,7 @@ let data = { chapters: [], hizbs: [], khutbahs: [], announcements: [] };
 let state = {
   page: "home",
   session: read(STORAGE.user, null),
+  authView: "login",
   chapterId: null,
   lessonId: read(STORAGE.lastLesson, null),
   quarterId: read(STORAGE.lastQuarter, null),
@@ -298,7 +302,9 @@ function render() {
   document.title = "مدرسة القرآن";
   $("#app").innerHTML = state.session
     ? `${nav()}<main>${({ home, curriculum, lesson, quran, quarter, khutbahs, khutbah, profile, admin, search }[state.page] || home)()}</main>${mobileNav()}`
-    : login();
+    : state.authView === "register"
+      ? register()
+      : login();
 }
 function nav() {
   return `<header class="topbar"><div class="shell"><button class="brand" onclick="go('home')"><span class="brand-mark">م</span>مدرسة القرآن</button><nav class="nav" aria-label="التنقل الرئيسي">${[
@@ -331,7 +337,10 @@ function mobileNav() {
     .join("")}</nav>`;
 }
 function login() {
-  return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? "☀" : "☾"}</button><section class="card login-card"><div class="brand"><span class="brand-mark">م</span>مدرسة القرآن</div><h1 class="headline">مرحباً بعودتك</h1><p class="sub">سجل دخولك لمتابعة رحلة تعلّم التجويد.</p><form onsubmit="signIn(event)"><div class="field"><label for="email">البريد الإلكتروني</label><input id="email" required type="email" value="ahmed@example.com"></div><div class="field"><label for="password">كلمة المرور</label><input id="password" required type="password" value="student"></div><button class="primary" type="submit">تسجيل الدخول</button></form><p class="compact">تجربة: <button class="text-link" onclick="quickLogin('student')">طالب</button> أو <button class="text-link" onclick="quickLogin('admin')">مدير</button></p></section></main>`;
+  return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? "☀" : "☾"}</button><section class="card login-card"><div class="brand"><span class="brand-mark">م</span>مدرسة القرآن</div><h1 class="headline">مرحباً بعودتك</h1><p class="sub">سجل دخولك لمتابعة رحلة تعلّم التجويد.</p><form onsubmit="signIn(event)"><div class="field"><label for="email">البريد الإلكتروني</label><input id="email" required type="email" value="ahmed@example.com"></div><div class="field"><label for="password">كلمة المرور</label><input id="password" required type="password" value="student"></div><button class="primary" type="submit">تسجيل الدخول</button></form><p class="compact">تجربة: <button class="text-link" onclick="quickLogin('student')">طالب</button> أو <button class="text-link" onclick="quickLogin('admin')">مدير</button></p><p class="compact">ليس لديك حساب؟ <button class="text-link" onclick="state.authView='register';render()">إنشاء حساب جديد</button></p></section></main>`;
+}
+function register() {
+  return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? "☀" : "☾"}</button><section class="card login-card"><div class="brand"><span class="brand-mark">م</span>مدرسة القرآن</div><h1 class="headline">إنشاء حساب جديد</h1><p class="sub">سجّل للانضمام إلى رحلة تعلّم التجويد.</p><form onsubmit="signUp(event)"><div class="field"><label for="reg-name">الاسم</label><input id="reg-name" required type="text" placeholder="الاسم الكامل"></div><div class="field"><label for="reg-email">البريد الإلكتروني</label><input id="reg-email" required type="email" placeholder="example@email.com"></div><div class="field"><label for="reg-password">كلمة المرور</label><input id="reg-password" required type="password" minlength="4" placeholder="4 أحرف على الأقل"></div><button class="primary" type="submit">إنشاء الحساب</button></form><p class="compact">لديك حساب بالفعل؟ <button class="text-link" onclick="state.authView='login';render()">تسجيل الدخول</button></p></section></main>`;
 }
 function home() {
   const last = resolveLastLesson();
@@ -871,9 +880,43 @@ async function signIn(event) {
   const email = $("#email").value.trim(),
     password = $("#password").value;
   try {
-    const { token, user } = await apiFetch("/auth/login", {
+    if (supabaseConfig.enabled && supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      const session = data.session;
+      if (!session) throw new Error("فشل تسجيل الدخول: لم يتم العثور على جلسة نشطة");
+
+      const { token, user } = await apiFetch("/auth/supabase", {
+        method: "POST",
+        body: JSON.stringify({ accessToken: session.access_token }),
+      });
+      setToken(token);
+      write(STORAGE.user, user);
+      state.session = user;
+    } else {
+      const { token, user } = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      setToken(token);
+      write(STORAGE.user, user);
+      state.session = user;
+    }
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+async function signUp(event) {
+  event.preventDefault();
+  const name = $("#reg-name").value.trim(),
+    email = $("#reg-email").value.trim(),
+    password = $("#reg-password").value;
+  try {
+    const { token, user } = await apiFetch("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ name, email, password }),
     });
     setToken(token);
     write(STORAGE.user, user);
@@ -888,13 +931,28 @@ async function quickLogin(role) {
   const email = role === "admin" ? "admin@example.com" : "ahmed@example.com",
     password = role === "admin" ? "admin" : "student";
   try {
-    const { token, user } = await apiFetch("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    setToken(token);
-    write(STORAGE.user, user);
-    state.session = user;
+    if (supabaseConfig.enabled && supabaseClient) {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      const session = data.session;
+      if (!session) throw new Error("فشل تسجيل الدخول: لم يتم العثور على جلسة نشطة");
+
+      const { token, user } = await apiFetch("/auth/supabase", {
+        method: "POST",
+        body: JSON.stringify({ accessToken: session.access_token }),
+      });
+      setToken(token);
+      write(STORAGE.user, user);
+      state.session = user;
+    } else {
+      const { token, user } = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      setToken(token);
+      write(STORAGE.user, user);
+      state.session = user;
+    }
     await loadAll();
     render();
   } catch (err) {
@@ -905,9 +963,13 @@ function logout() {
   activeAudio?.pause();
   activeAudio = null;
   activeRecordingId = null;
+  if (supabaseConfig.enabled && supabaseClient) {
+    supabaseClient.auth.signOut().catch(() => {});
+  }
   setToken(null);
   localStorage.removeItem(STORAGE.user);
   state.session = null;
+  state.authView = "login";
   render();
 }
 function adminTab(id) {
@@ -1086,6 +1148,19 @@ async function deleteAnnouncement(id) {
 
 async function init() {
   applyTheme();
+
+  try {
+    const config = await apiFetch("/auth/config");
+    if (config && config.enabled) {
+      supabaseConfig = config;
+      if (window.supabase) {
+        supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load Supabase config:", err);
+  }
+
   const token = getToken();
   const cachedUser = read(STORAGE.user, null);
   if (token && cachedUser) {
