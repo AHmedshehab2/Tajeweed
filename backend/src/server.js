@@ -22,5 +22,21 @@ app.use('/api/upload', uploadRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Tajweed LMS API running on :${PORT}`));
+const PORT = Number(process.env.PORT || 4000);
+
+function startServer(port) {
+  const server = app.listen(port, () => console.log(`Tajweed LMS API running on :${port}`));
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`Port ${port} is already in use. Trying ${port + 1}...`);
+      startServer(port + 1);
+      return;
+    }
+
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+startServer(PORT);

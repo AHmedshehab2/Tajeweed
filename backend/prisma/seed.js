@@ -3,6 +3,19 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.activityEntry.deleteMany();
+  await prisma.lessonProgress.deleteMany();
+  await prisma.quarterProgress.deleteMany();
+  await prisma.resource.deleteMany();
+  await prisma.recording.deleteMany();
+  await prisma.announcement.deleteMany();
+  await prisma.khutbah.deleteMany();
+  await prisma.lesson.deleteMany();
+  await prisma.quarter.deleteMany();
+  await prisma.hizb.deleteMany();
+  await prisma.chapter.deleteMany();
+  await prisma.user.deleteMany();
+
   // Demo accounts (same as the old quickLogin() helper)
   const studentPass = await bcrypt.hash('student', 10);
   const adminPass = await bcrypt.hash('admin', 10);

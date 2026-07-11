@@ -7,6 +7,16 @@ const resSelect = { id: true, title: true, kind: true, uploadedAt: true, fileUrl
 
 function serializeRecording(r) { return { ...r, uploadedAt: r.uploadedAt.toISOString().slice(0, 10) }; }
 function serializeResource(r) { return { ...r, uploadedAt: r.uploadedAt.toISOString().slice(0, 10) }; }
+function parseObjectives(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 // GET /api/content -> full tree shaped like the old defaultContent()/data object
 router.get('/content', requireAuth, async (req, res) => {
@@ -28,7 +38,7 @@ router.get('/content', requireAuth, async (req, res) => {
       ...c,
       lessons: c.lessons.map(l => ({
         ...l,
-        objectives: JSON.parse(l.objectives || '[]'),
+        objectives: parseObjectives(l.objectives),
         recordings: l.recordings.map(serializeRecording),
         resources: l.resources.map(serializeResource),
       })),

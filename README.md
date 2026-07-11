@@ -18,7 +18,7 @@ Demo accounts (created by the seed script, same as the old quickLogin()):
 ## Run the frontend
 
 `frontend/` is the same three files (`index.html`, `app.js`, `styles.css`) — just serve them statically, e.g.:
-
+n
 ```bash
 cd frontend
 npx serve .        # or any static server
