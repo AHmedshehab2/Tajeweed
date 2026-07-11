@@ -2,8 +2,6 @@
 
 A modern Learning Management System (LMS) designed for Qur'an schools and Tajweed study circles.
 
-![Quran School](home.jpg)
-
 ---
 
 ## 🌟 Overview
