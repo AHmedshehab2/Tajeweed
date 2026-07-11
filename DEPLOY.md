@@ -112,8 +112,19 @@ The frontend auto-connects to `http://localhost:4000/api` when not served from p
 | `HOST` | No | Default `0.0.0.0` |
 | `CLIENT_ORIGIN` | No | CORS origin (`*` or your site URL) |
 | `NODE_ENV` | Prod | Set to `production` to serve the frontend from the API |
+| `SUPABASE_URL` | Supabase | Project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Supabase | Publishable API key (safe for client) |
+| `SUPABASE_SECRET_KEY` | Supabase | Secret key — server only, never expose |
+| `SUPABASE_JWKS_URL` | Supabase | JWKS endpoint for JWT verification |
 
 Copy `backend/.env.example` to `backend/.env` for local development.
+
+### Supabase Auth
+
+1. Add the Supabase variables to `backend/.env`.
+2. Restart the API — `GET /api/auth/config` returns `{ enabled: true, url, publishableKey }`.
+3. The API accepts **local JWTs** (demo login) and **Supabase Auth JWTs**.
+4. After client-side Supabase sign-in, call `POST /api/auth/supabase` with the access token to sync the user profile.
 
 ---
 
