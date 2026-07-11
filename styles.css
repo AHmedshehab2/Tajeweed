@@ -30,3 +30,6 @@ main { padding:42px 0 80px; }.eyebrow { color:var(--green); font-size:13px; font
 @media(max-width:560px){.activity-grid{grid-template-columns:1fr}.lesson-pager{grid-template-columns:1fr}.lesson-pager .resource:last-child{text-align:right}.activity-row{display:block}.activity-row span{display:block;margin-top:4px}.rich-audio{flex-wrap:wrap}.rich-audio .audio-title{order:3;flex-basis:100%}.speed{margin-right:auto}.recent-section{margin-top:22px}}
 @media(max-width:800px){.hizb-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.hizb-grid{grid-template-columns:1fr}.admin-item{align-items:flex-start;flex-direction:column;gap:8px}.admin-item>div:last-child{display:flex;gap:12px}}
+
+/* Home page hero photo */
+.home-photo { width:100%; height:300px; object-fit:cover; border-radius:12px; margin-bottom:12px; }
