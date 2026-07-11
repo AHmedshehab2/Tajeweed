@@ -1,117 +1,70 @@
-# 📖 Quran School LMS
+# Tajweed LMS — Backend + Frontend wiring
 
-A modern Learning Management System (LMS) designed for Qur'an schools and Tajweed study circles.
-
----
-
-## 🌟 Overview
-
-This project provides a complete web-based platform that allows students and teachers to organize Qur'an learning in one place.
-
-Students can:
-- 📚 Browse Tajweed lessons
-- 🎧 Listen to lesson recordings
-- 📖 Track Qur'an memorization and revision
-- 📈 Monitor their learning progress
-- 🔍 Search lessons and resources
-- 🌙 Switch between Light and Dark mode
-
-Teachers/Admins can:
-- ➕ Add and manage lessons
-- 📂 Upload recordings and PDFs
-- 📢 Publish announcements
-- 🕌 Manage Friday khutbahs
-- 📖 Organize Qur'an revision by Hizb and Quarter
-
----
-
-## ✨ Features
-
-### Student Portal
-- Secure Login
-- Dashboard
-- Tajweed Curriculum
-- Lesson Progress Tracking
-- Qur'an Revision
-- Audio Player
-- Search System
-- Personal Profile
-- Responsive Design
-
-### Admin Dashboard
-- Manage Chapters
-- Manage Lessons
-- Upload Resources
-- Manage Qur'an Sections
-- Manage Khutbahs
-- Publish Announcements
-
----
-
-## 🛠 Technologies Used
-
-- HTML5
-- CSS3
-- Vanilla JavaScript
-- Local Storage
-- Responsive Design
-- Dark / Light Theme
-
----
-
-## 📂 Project Structure
-
-```
-├── index.html
-├── styles.css
-├── app.js
-├── home.jpg
-└── README.md
-```
-
----
-
-## 🚀 Getting Started
-
-1. Clone the repository
+## Run the backend
 
 ```bash
-git clone https://github.com/yourusername/quran-school-lms.git
+cd backend
+npm install
+cp .env.example .env          # edit JWT_SECRET if you like
+npx prisma migrate dev --name init
+npm run prisma:seed           # loads the same chapters/lessons/hizbs/khutbahs as the old defaultContent()
+npm run dev                   # starts on http://localhost:4000
 ```
 
-2. Open the project
+Demo accounts (created by the seed script, same as the old quickLogin()):
+- Student: `ahmed@example.com` / `student`
+- Admin:   `admin@example.com` / `admin`
+
+## Run the frontend
+
+`frontend/` is the same three files (`index.html`, `app.js`, `styles.css`) — just serve them statically, e.g.:
 
 ```bash
-cd quran-school-lms
+cd frontend
+npx serve .        # or any static server
 ```
 
-3. Open `index.html` in your browser.
+`index.html` sets `window.API_BASE` to `http://localhost:4000/api` before `app.js` loads — change that if your backend runs elsewhere.
 
-No installation is required.
+## What changed in app.js
 
+- `STORAGE` no longer holds `content`, `session`, `lessonProgress`, `quranProgress`, or `activity` — those live in the database now. Only `theme`, `lastLesson`, `lastQuarter`, `token`, and `user` (a cache of the JWT payload, for instant UI on reload) stay in `localStorage`.
+- `apiFetch()` — a small wrapper around `fetch` that attaches the JWT and throws on non-2xx (auto-logs out on 401).
+- `loadAll()` — fetches `/api/content` (full chapters/hizbs/khutbahs/announcements tree, same shape as the old `defaultContent()`) and `/api/progress/me` (per-user lesson/quarter progress + recent activity) and fills the same `data`/`progressCache` objects the render functions already read from. This means almost none of the 20+ render functions (`home()`, `curriculum()`, `lesson()`, `quran()`, etc.) needed to change — they still just read `data` and call `lessonStatus()`/`completedQuarters()` synchronously.
+- `signIn`, `quickLogin`, `logout` — now call `POST /api/auth/login`, store the JWT, then `loadAll()`.
+- `advanceLesson`, `toggleQuarter`, `playRecording` — now call the progress API and update the local `progressCache` from the response instead of writing to `localStorage`.
+- `saveChapter`, `deleteChapter`, `saveLesson`, `uploadResource`, `addAnnouncement`, `deleteAnnouncement` — now call the matching REST endpoint, then re-run `loadAll()` to refresh `data` from the DB (simplest correctness-first approach; can be optimized to patch `data` locally later if you want fewer round trips).
+- `uploadResource` now sends the actual file via `FormData` to `/api/upload` instead of an in-memory `URL.createObjectURL()` blob — files now persist across sessions/browsers, served from `/uploads` on the backend.
+- `persistContent()` is gone entirely — the backend is now the source of truth.
 
----
+## Endpoints
 
-## 💡 Future Improvements
+```
+POST   /api/auth/register
+POST   /api/auth/login
+GET    /api/auth/me
 
-- Backend integration
-- User authentication
-- Database support
-- File storage
-- Online audio streaming
-- Attendance system
-- Quiz and Exams
-- Mobile Application
-- Notifications
-- Teacher feedback
+GET    /api/content                    (full chapters/hizbs/khutbahs/announcements tree)
+POST   /api/chapters                   (admin)
+PATCH  /api/chapters/:id               (admin)
+DELETE /api/chapters/:id               (admin)
+POST   /api/lessons                    (admin)
+PATCH  /api/lessons/:id                (admin)
+DELETE /api/lessons/:id                (admin)
 
----
+POST   /api/announcements              (admin)
+DELETE /api/announcements/:id          (admin)
 
-## ❤️ Purpose
+GET    /api/progress/me
+POST   /api/progress/lessons/:id       (cycles not-started → in-progress → completed)
+POST   /api/progress/quarters/:id      (toggles completion)
+POST   /api/progress/activity          (logs a listen event, keeps last 5)
 
-This project was created to make Qur'an education more organized, accessible, and engaging through modern web technologies while preserving the simplicity of traditional learning circles.
+POST   /api/upload                     (admin, multipart — attaches a recording/resource to a lesson/quarter/khutbah)
+```
 
----
+## Notes / next steps
 
-
-> "The best among you are those who learn the Qur'an and teach it." — Prophet Muhammad ﷺ
+- SQLite is set in `schema.prisma` for zero-setup local dev. Switch `provider` to `"postgresql"` and point `DATABASE_URL` at a real Postgres instance before deploying.
+- Move `JWT_SECRET` to a real secret manager in production; don't commit `.env`.
+- File uploads currently sit on local disk (`backend/uploads/`) — swap `multer.diskStorage` for an S3/R2 adapter when you deploy, since local disk won't persist on most hosting platforms.
