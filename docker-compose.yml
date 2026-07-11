@@ -1,0 +1,20 @@
+services:
+  tajweed:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: "file:./data/prod.db"
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-*}
+    volumes:
+      - tajweed-data:/app/backend/data
+      - tajweed-uploads:/app/backend/uploads
+    restart: unless-stopped
+
+volumes:
+  tajweed-data:
+  tajweed-uploads:

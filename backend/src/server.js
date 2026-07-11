@@ -22,6 +22,15 @@ app.use('/api/upload', uploadRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+const frontendDir = path.join(__dirname, '../../frontend');
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(frontendDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.sendFile(path.join(frontendDir, 'index.html'));
+  });
+}
+
 const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || '0.0.0.0';
 

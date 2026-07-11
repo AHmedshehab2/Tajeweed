@@ -48,11 +48,11 @@ router.post('/', requireAuth, requireAdmin, upload.single('file'), async (req, r
       return res.status(201).json(resource);
     }
 
-    if (area === 'khutbah') {
-      if (type === 'recording') {
+    if (area === "khutbah") {
+      if (type === "recording") {
         const khutbah = await prisma.khutbah.update({
           where: { id: targetId },
-          data: { audioUrl: fileUrl, duration: 'جديد', date: new Date() },
+          data: { audioUrl: fileUrl, duration: 'جديد' },
         });
         return res.status(201).json(khutbah);
       }

@@ -1,0 +1,18 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Note: SQLite on Render is not persistent across redeploys.
+# For production on Render, use a PostgreSQL database and update prisma/schema.prisma.
+services:
+  - type: web
+    name: tajweed-lms
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_ORIGIN
+        value: "*"
+      - key: DATABASE_URL
+        value: file:./data/prod.db
