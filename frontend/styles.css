@@ -44,6 +44,10 @@
 	--pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84' viewBox='0 0 84 84'%3E%3Cg fill='none' stroke='%232fbfa3' stroke-opacity='0.07' stroke-width='1.4'%3E%3Cpath d='M42 4 L66 22 L66 62 L42 80 L18 62 L18 22 Z'/%3E%3Cpath d='M42 20 L54 30 L54 54 L42 64 L30 54 L30 30 Z'/%3E%3C/g%3E%3C/svg%3E");
 	color-scheme:dark;
 }
+[data-theme="dark"] .card:hover,
+[data-theme="dark"] .resume-card:hover { box-shadow:var(--shadow-md),0 0 22px rgba(47,191,163,.18); }
+[data-theme="dark"] .announcement:hover { box-shadow:var(--shadow-md),0 0 22px rgba(47,191,163,.12); }
+[data-theme="dark"] .mobile-nav { background:rgba(11,22,19,.75); border-top:1px solid rgba(31,50,44,.5); box-shadow:0 -1px 12px rgba(0,0,0,.3); }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--cream) var(--pattern); color:var(--ink); font-family:"IBM Plex Sans Arabic",sans-serif; transition:background .2s ease,color .2s ease; }
 .theme-toggle { background:var(--surface); color:var(--muted); font-size:16px; border-radius:999px; padding:8px 11px; line-height:1; box-shadow:var(--shadow-sm); }
@@ -53,48 +57,90 @@ body { margin:0; background:var(--cream) var(--pattern); color:var(--ink); font-
 button,input { font:inherit; } button { cursor:pointer; border:0; } .shell { max-width:1280px; padding:0 28px; margin:auto; }
 button:focus-visible,input:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
 .brand { border:0; background:transparent; cursor:pointer; }
-.topbar { height:80px; background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; box-shadow:var(--shadow-sm); }
+.topbar { height:80px; background:rgba(247,250,249,.7); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-bottom:1px solid rgba(226,236,233,.5); position:sticky; top:0; z-index:5; box-shadow:0 1px 12px rgba(0,45,38,.06); }
+@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))) { .topbar { background:var(--cream); } }
+[data-theme="dark"] .topbar { background:rgba(11,22,19,.7); border-bottom:1px solid rgba(31,50,44,.5); box-shadow:0 1px 12px rgba(0,0,0,.3); }
 .topbar .shell { height:100%; display:flex; align-items:center; gap:32px; }
 .brand { display:flex; align-items:center; gap:10px; margin-left:auto; font-family:"Noto Naskh Arabic"; font-size:24px; font-weight:700; color:var(--green); white-space:nowrap; }
 .brand-mark { width:36px; height:36px; display:grid; place-items:center; background:linear-gradient(160deg,var(--green),var(--green-dark)); border-radius:50% 50% 50% 8px; font-family:serif; color:var(--gold); box-shadow:var(--shadow-sm); }
-.nav { display:flex; gap:4px; background:var(--tint); padding:5px; border-radius:999px; }
+.nav { display:flex; gap:4px; background:rgba(0,110,97,.08); padding:5px; border-radius:999px; }
+[data-theme="dark"] .nav { background:rgba(47,191,163,.1); }
 .nav button { background:transparent; padding:9px 16px; border-radius:999px; color:var(--muted); font-weight:600; }
 .nav button.active,.nav button:hover { color:#fff; background:var(--green); }
 .actions { display:flex; align-items:center; gap:10px; }
-.icon-btn { background:var(--surface); color:var(--muted); font-size:18px; border-radius:999px; padding:8px 11px; box-shadow:var(--shadow-sm); }
-.icon-btn:hover { color:var(--green); }
+.icon-btn { background:rgba(255,255,255,.5); color:var(--muted); font-size:18px; border-radius:999px; padding:8px 11px; box-shadow:0 1px 6px rgba(0,45,38,.06); border:1px solid rgba(226,236,233,.4); }
+.icon-btn:hover { color:var(--green); background:rgba(255,255,255,.75); }
+[data-theme="dark"] .icon-btn { background:rgba(16,29,25,.5); border:1px solid rgba(31,50,44,.4); }
+[data-theme="dark"] .icon-btn:hover { background:rgba(16,29,25,.75); }
 .avatar { width:36px; height:36px; border-radius:50%; display:grid; place-items:center; background:linear-gradient(160deg,var(--gold),var(--gold-dark)); font-size:13px; color:#fff; font-weight:700; box-shadow:var(--shadow-sm); }
 main { padding:42px 0 80px; }
 .eyebrow { color:var(--green); font-size:13px; font-weight:700; letter-spacing:.2px; }
 .headline { margin:7px 0 6px; font:700 39px/1.25 "Noto Naskh Arabic"; }
 .sub { margin:0; color:var(--muted); line-height:1.8; }
 .grid { display:grid; gap:20px; }
-.dashboard-grid { grid-template-columns:1.55fr .9fr; margin-top:30px; }
-.card { background:var(--white); border:1px solid var(--line); border-radius:20px; padding:23px; box-shadow:var(--shadow-sm); transition:box-shadow .2s ease,transform .2s ease; }
-.card:hover { box-shadow:var(--shadow-md); }
-.hero { position:relative; overflow:hidden; min-height:264px; background:linear-gradient(135deg,var(--green),var(--green-dark)); color:white; border:0; box-shadow:var(--shadow-lg); }
-.hero:after { content:"۞"; position:absolute; left:-25px; bottom:-76px; font-family:serif; font-size:250px; color:#ffffff14; }
-.hero .eyebrow { color:#bfe9df; }
-.hero h2 { margin:13px 0 5px; font:700 30px/1.4 "Noto Naskh Arabic"; }
-.hero p { margin:0; color:#d9f0e9; }
-.lesson-path { display:flex; align-items:center; gap:8px; margin-top:29px; color:#c9ece2; font-size:13px; }
-.lesson-path b { color:#fff; }
-.primary { margin-top:13px; padding:12px 22px; border-radius:999px; background:linear-gradient(135deg,var(--gold),var(--gold-dark)); color:#3f2f08; font-weight:700; box-shadow:0 8px 20px rgba(212,175,55,.35); }
-.primary:hover { filter:brightness(1.05); }
+
+.card { background:var(--white); border:1px solid var(--line); border-radius:20px; padding:23px; box-shadow:var(--shadow-sm); transition:box-shadow .25s ease,transform .2s ease; }
+.card:hover { box-shadow:var(--shadow-md),0 0 22px rgba(0,110,97,.13); }
+.primary { margin-top:13px; padding:12px 28px; border-radius:14px; background:var(--green); color:#fff; font-weight:700; box-shadow:0 6px 18px rgba(0,110,97,.3); border:0; transition:filter .15s ease,box-shadow .15s ease; }
+.primary:hover { filter:brightness(1.08); box-shadow:0 8px 24px rgba(0,110,97,.4); }
+.btn-outline { margin-top:13px; padding:12px 28px; border-radius:14px; background:transparent; color:var(--green); font-weight:700; border:2px solid var(--green); transition:background .15s ease,color .15s ease; }
+.btn-outline:hover { background:var(--green); color:#fff; }
+/* Hero section (redesigned) */
+.hero-section { position:relative; overflow:hidden; background:linear-gradient(135deg,var(--green),var(--green-dark)); color:#fff; border-radius:24px; padding:52px 44px 44px; margin-top:10px; box-shadow:var(--shadow-lg); display:flex; align-items:center; gap:36px; }
+.hero-section:after { content:"۞"; position:absolute; left:-30px; bottom:-80px; font-family:serif; font-size:260px; color:#ffffff10; pointer-events:none; }
+.hero-photo { width:130px; height:130px; border-radius:50%; object-fit:cover; object-position:center 20%; border:4px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.2); flex-shrink:0; }
+.hero-text { flex:1; min-width:0; }
+.hero-ayah { margin:0 0 14px; font:700 32px/1.5 "Noto Naskh Arabic"; max-width:720px; }
+.hero-sub { margin:0 0 28px; color:#c9ece2; font-size:16px; line-height:1.7; max-width:600px; }
+.hero-search { position:relative; max-width:520px; margin-bottom:28px; }
+.hero-search input { width:100%; padding:14px 48px 14px 18px; border-radius:14px; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.12); color:#fff; font-size:15px; backdrop-filter:blur(6px); outline:none; transition:border-color .15s ease; }
+.hero-search input::placeholder { color:rgba(255,255,255,.55); }
+.hero-search input:focus { border-color:rgba(255,255,255,.6); }
+.hero-search-icon { position:absolute; right:16px; top:50%; transform:translateY(-50%); color:rgba(255,255,255,.6); font-size:18px; pointer-events:none; }
+.hero-cta { display:flex; gap:14px; flex-wrap:wrap; }
+.hero-cta .primary { background:var(--gold); color:#2a1f05; box-shadow:0 6px 18px rgba(212,175,55,.35); margin-top:0; }
+.hero-cta .primary:hover { box-shadow:0 8px 24px rgba(212,175,55,.5); filter:brightness(1.05); }
+.hero-cta .btn-outline { border-color:rgba(255,255,255,.5); color:#fff; margin-top:0; }
+.hero-cta .btn-outline:hover { background:rgba(255,255,255,.15); color:#fff; border-color:rgba(255,255,255,.8); }
+
+/* Resume learning card */
+.resume-card { display:flex; align-items:center; gap:28px; background:var(--white); border:1px solid var(--line); border-radius:20px; padding:24px 28px; box-shadow:var(--shadow-sm); transition:box-shadow .2s ease; }
+.resume-card:hover { box-shadow:var(--shadow-md),0 0 22px rgba(0,110,97,.13); }
+.resume-info { flex:1; min-width:0; }
+.resume-info .eyebrow { margin-bottom:2px; }
+.resume-info h3 { margin:4px 0 4px; font:700 20px "Noto Naskh Arabic"; }
+.resume-info p { margin:0; color:var(--muted); font-size:13px; }
+.resume-progress { flex-shrink:0; display:flex; align-items:center; gap:16px; min-width:220px; }
+.resume-progress .progress-line { flex:1; min-width:100px; }
+.resume-percent { font-weight:700; font-size:15px; color:var(--green); white-space:nowrap; min-width:38px; text-align:center; }
+.resume-card .open { margin-right:0; flex-shrink:0; }
+
+/* Announcement refinements */
+.announcement-stack { margin-top:28px; }
+.announcement.important { border-color:#dfbe7a; }
+
+/* Confirmation modal */
+.confirm-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10; display:grid; place-items:center; backdrop-filter:blur(4px); }
+.confirm-card { background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:32px 36px; max-width:420px; width:90%; box-shadow:var(--shadow-lg); text-align:center; }
+.confirm-card h3 { margin:0 0 10px; font:700 20px "Noto Naskh Arabic"; color:var(--ink); }
+.confirm-card p { margin:0 0 24px; color:var(--muted); font-size:14px; line-height:1.7; }
+.confirm-actions { display:flex; gap:12px; justify-content:center; }
+.confirm-actions .btn-danger { padding:10px 24px; border-radius:14px; background:#c0392b; color:#fff; font-weight:700; border:0; transition:background .15s ease; }
+.confirm-actions .btn-danger:hover { background:#a93226; }
+.confirm-actions .btn-ghost { padding:10px 24px; border-radius:14px; background:transparent; color:var(--muted); font-weight:700; border:2px solid var(--line); transition:border-color .15s ease,color .15s ease; }
+.confirm-actions .btn-ghost:hover { border-color:var(--accent-line); color:var(--ink); }
+
 .section-title { display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; }
 .section-title h3 { margin:0; font:700 21px "Noto Naskh Arabic"; }
 .text-link { background:transparent; color:var(--green); font-size:13px; font-weight:700; }
-.progress-ring { width:114px; height:114px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--gold) 0 41%,var(--line) 41%); position:relative; margin:13px auto; }
-.progress-ring:before { content:""; width:90px; height:90px; border-radius:50%; background:var(--surface); position:absolute; }
-.progress-ring div { position:relative; text-align:center; font-weight:700; font-size:21px; }
-.progress-ring small { display:block; font-size:11px; color:var(--muted); font-weight:400; }
-.compact { font-size:13px; text-align:center; color:var(--muted); }
+
 .updates { grid-column:1/-1; display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
 .update { padding:18px; border:1px solid var(--line); border-radius:16px; background:var(--surface); box-shadow:var(--shadow-sm); }
 .update-type { display:inline-block; color:var(--green); background:var(--tint); padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; }
 .update h4 { margin:10px 0 6px; font-size:16px; }
 .update p { font-size:12px; color:var(--muted); margin:0; }
-.announcement { grid-column:1/-1; background:var(--warn-bg); border:1px solid #f1dfbc; color:var(--warn-ink); padding:16px 19px; border-radius:14px; font-size:14px; }
+.announcement { grid-column:1/-1; background:var(--warn-bg); border:1px solid #f1dfbc; color:var(--warn-ink); padding:16px 19px; border-radius:14px; font-size:14px; transition:box-shadow .25s ease; }
+.announcement:hover { box-shadow:var(--shadow-md),0 0 22px rgba(0,110,97,.1); }
 .announcement strong { margin-left:6px; }
 .update { text-align:right; font-family:inherit; }
 .update:hover { border-color:var(--accent-line); box-shadow:var(--shadow-md); }
@@ -121,9 +167,7 @@ main { padding:42px 0 80px; }
 .login-card .primary { width:100%; }
 .login-card .compact { margin-top:18px; }
 .table-wrap { overflow:auto; }
-.recent-section { margin-top:28px; }
-.announcement-stack { margin-top:18px; }
-.announcement.important { border-color:#dfbe7a; }
+.note { background:var(--warn-bg); padding:12px 16px; border-radius:12px; color:var(--warn-ink); }
 .announce-tag { display:inline-block; margin-left:9px; font-size:11px; font-weight:700; color:var(--warn-ink); }
 .rich-audio { align-items:flex-start; }
 .rich-audio .audio-title { min-width:0; }
@@ -140,6 +184,12 @@ main { padding:42px 0 80px; }
 .activity-row { display:flex; justify-content:space-between; gap:15px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14px; }
 .activity-row:last-child { border:0; }
 .activity-row span { color:var(--muted); font-size:13px; }
+.heatmap { display:flex; flex-direction:column; gap:10px; padding:4px 0; }
+.heatmap-row { display:flex; align-items:center; gap:12px; }
+.heatmap-label { width:50px; font-size:13px; font-weight:600; color:var(--ink); text-align:left; flex-shrink:0; }
+.heatmap-bar-track { flex:1; height:22px; background:var(--line); border-radius:6px; overflow:hidden; }
+.heatmap-bar { height:100%; background:linear-gradient(90deg, var(--green), var(--gold)); border-radius:6px; transition:width .4s ease; min-width:0; }
+.heatmap-count { width:24px; font-size:13px; color:var(--muted); text-align:center; flex-shrink:0; }
 .search-groups { display:grid; gap:17px; }
 .search-groups .card { padding:0; overflow:hidden; }
 .search-groups h3 { padding:18px 21px; margin:0; background:var(--tint); border-bottom:1px solid var(--line); font:700 20px "Noto Naskh Arabic"; }
@@ -181,15 +231,34 @@ main { padding:42px 0 80px; }
 .topic-link.active { background:var(--green); color:#fff; font-weight:700; }
 .topic-link small { display:block; color:var(--muted); margin-top:2px; }
 .topic-link.active small { color:#d8f0ea; }
-.lesson-list { padding:0; overflow:hidden; }
+.lesson-list { padding:0; display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
 .topic-header { padding:24px 25px; background:var(--tint); border-bottom:1px solid var(--line); }
 .topic-header h2 { margin:2px 0 0; font:700 28px "Noto Naskh Arabic"; }
-.lesson-row { display:flex; gap:16px; align-items:center; padding:19px 25px; border-bottom:1px solid var(--line); }
-.lesson-row:last-child { border:0; }
-.lesson-row:hover { background:var(--tint); }
+.lesson-card { padding:0; overflow:hidden; flex-direction:column; }
+.lesson-art { position:relative; height:115px; background:var(--tint); overflow:hidden; border-radius:20px 20px 0 0; }
+.lesson-art-img { width:100%; height:100%; object-fit:cover; display:block; }
+.lesson-art-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--tint),#dce9e4); }
+.lesson-art-fallback span { font-size:28px; font-weight:700; color:var(--green); opacity:.4; }
+.lesson-body { padding:14px 16px 16px; flex:1; display:flex; flex-direction:column; gap:4px; }
+.lesson-body h3 { margin:0; font-size:16px; }
+.lesson-body p { margin:0; color:var(--muted); font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.lesson-meta { display:flex; align-items:center; gap:8px; margin-top:6px; }
+.lesson-body .open { align-self:flex-start; margin-top:auto; padding:7px 14px; font-size:13px; }
+.lesson-hero { position:relative; margin-bottom:20px; border-radius:20px; overflow:hidden; max-height:280px; cursor:pointer; }
+.lesson-hero img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .3s ease; }
+.lesson-hero:hover img { transform:scale(1.02); }
+.lesson-hero-badge { position:absolute; bottom:12px; left:12px; background:rgba(0,0,0,.55); color:#fff; font-size:12px; font-weight:600; padding:5px 12px; border-radius:999px; backdrop-filter:blur(4px); transition:opacity .2s; }
+.lesson-hero:hover .lesson-hero-badge { opacity:.85; }
+.image-overlay-card { background:var(--surface); border-radius:20px; max-width:90vw; max-height:90vh; overflow:hidden; display:flex; flex-direction:column; }
+.image-overlay-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+.image-overlay-header h3 { margin:0; font-size:16px; }
+.image-overlay-actions { display:flex; gap:10px; align-items:center; }
+.image-overlay-card > img { width:100%; max-height:75vh; object-fit:contain; background:#000; }
+.btn-delete-sm { background:rgba(192,57,43,.08); border:none; color:#c0392b; font-size:13px; cursor:pointer; padding:5px 9px; border-radius:8px; line-height:1; transition:all .15s; }
+.btn-delete-sm:hover { background:rgba(192,57,43,.18); color:#a93226; }
+.resource-delete { position:absolute; top:8px; left:8px; z-index:1; }
+.rich-audio .btn-delete-sm { position:relative; flex-shrink:0; }
 .number { color:var(--gold-dark); font-size:13px; font-weight:700; background:var(--tint); border-radius:999px; padding:4px 9px; }
-.lesson-row h3 { margin:0 0 4px; font-size:16px; }
-.lesson-row p { margin:0; color:var(--muted); font-size:13px; }
 .status { margin-right:auto; color:var(--green); font-size:13px; }
 .open { background:var(--tint); color:var(--green); padding:9px 15px; border-radius:999px; font-weight:600; }
 .open:hover { background:var(--green); color:#fff; }
@@ -205,9 +274,8 @@ main { padding:42px 0 80px; }
 .objectives { margin-top:20px; }
 .objectives li { padding:6px 0; color:var(--ink); }
 .resources { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:20px; }
-.resource { display:block; text-decoration:none; text-align:right; padding:17px; background:var(--surface); border:1px solid var(--line); border-radius:16px; color:var(--ink); }
+.resource { position:relative; display:block; text-decoration:none; text-align:right; padding:17px; background:var(--surface); border:1px solid var(--line); border-radius:16px; color:var(--ink); }
 .resource-disabled { opacity:.65; cursor:default; }
-.home-avatar-fallback { display:grid; place-items:center; background:linear-gradient(160deg,var(--green),var(--green-dark)); color:var(--gold); font:700 42px "Noto Naskh Arabic"; flex-shrink:0; }
 .resource:hover { border-color:var(--accent-line); box-shadow:var(--shadow-sm); }
 .resource span { color:var(--muted); display:block; font-size:12px; margin-top:3px; }
 .quarters { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
@@ -219,8 +287,7 @@ main { padding:42px 0 80px; }
 .progress-line { height:8px; background:var(--line); border-radius:999px; overflow:hidden; margin:11px 0 6px; }
 .progress-line i { display:block; height:100%; background:linear-gradient(90deg,var(--green),var(--gold)); border-radius:999px; }
 .khutbahs { display:grid; grid-template-columns:repeat(3,1fr); gap:17px; }
-.khutbah { padding:0; overflow:hidden; }
-.khutbah-art { height:105px; background:linear-gradient(135deg,var(--green),var(--blue)); color:#f5e9c4; display:grid; place-items:center; font:52px "Noto Naskh Arabic"; }
+.khutbah { padding:0; }
 .khutbah-body { padding:18px; }
 .khutbah-body h3 { margin:3px 0 7px; font-size:17px; }
 .khutbah-body p { margin:0; color:var(--muted); font-size:12px; }
@@ -240,48 +307,14 @@ main { padding:42px 0 80px; }
 .field input { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
 .field input:focus { border-color:var(--green); outline:none; }
 .field input::placeholder { color:var(--muted); opacity:.6; }
+.field textarea { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--surface); font-family:inherit; font-size:14px; resize:vertical; }
+.field textarea:focus { border-color:var(--green); outline:none; }
+.field textarea::placeholder { color:var(--muted); opacity:.6; }
 .mobile-nav { display:none; }
-@media(max-width:800px){ .shell{padding:0 17px}.topbar{height:65px}.nav{display:none}.actions .icon-btn{display:none}.brand{font-size:21px}.dashboard-grid,.curriculum,.admin-layout{grid-template-columns:1fr}.updates,.khutbahs{grid-template-columns:1fr}.quarters{grid-template-columns:repeat(2,1fr)}.page-heading{align-items:stretch;gap:16px;flex-direction:column}.search{width:100%}.headline{font-size:31px}.admin-menu{display:flex;overflow:auto}.admin-menu button{white-space:nowrap;width:auto}.mobile-nav{position:fixed; bottom:0; right:0; left:0; z-index:6; height:64px; background:var(--surface); border-top:1px solid var(--line); display:flex; justify-content:space-around; padding:7px; box-shadow:0 -4px 16px rgba(0,0,0,.06)}.mobile-nav button{font-size:11px; color:var(--muted); background:transparent}.mobile-nav button.active{color:var(--green);font-weight:700}main{padding-top:28px;padding-bottom:85px}.resources,.form-grid{grid-template-columns:1fr}.lesson-row{padding:16px}.lesson-row .status{display:none}.audio{padding:17px}.topbar .shell{gap:10px}.avatar{margin-right:auto} }
-@media(max-width:560px){.quarters,.profile-stats{grid-template-columns:1fr}.audio{width:100%;gap:10px}.admin-table,.admin-table tbody,.admin-table tr,.admin-table td{display:block;width:100%}.admin-table thead{display:none}.admin-table tr{padding:10px;border-bottom:1px solid var(--line)}.admin-table td{padding:5px 0;border:0}.admin-table td:before{content:attr(data-label) ': ';color:var(--muted);font-size:12px}.hizb-tabs{flex-wrap:nowrap;overflow:auto;padding-bottom:4px}.hizb-tabs button{white-space:nowrap}.login{padding:18px}}
-@media(max-width:560px){.activity-grid{grid-template-columns:1fr}.lesson-pager{grid-template-columns:1fr}.lesson-pager .resource:last-child{text-align:right}.activity-row{display:block}.activity-row span{display:block;margin-top:4px}.rich-audio{flex-wrap:wrap}.rich-audio .audio-title{order:3;flex-basis:100%}.speed{margin-right:auto}.recent-section{margin-top:22px}}
+@media(max-width:800px){ .shell{padding:0 17px}.topbar{height:65px}.nav{display:none}.actions .icon-btn{display:none}.brand{font-size:21px}.curriculum,.admin-layout{grid-template-columns:1fr}.updates,.khutbahs{grid-template-columns:1fr}.quarters{grid-template-columns:repeat(2,1fr)}.page-heading{align-items:stretch;gap:16px;flex-direction:column}.search{width:100%}.headline{font-size:31px}.admin-menu{display:flex;overflow:auto}.admin-menu button{white-space:nowrap;width:auto}.mobile-nav{position:fixed; bottom:0; right:0; left:0; z-index:6; height:64px; background:rgba(247,250,249,.75); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-top:1px solid rgba(226,236,233,.5); display:flex; justify-content:space-around; padding:7px; box-shadow:0 -1px 12px rgba(0,45,38,.06)}.mobile-nav button{font-size:11px; color:var(--muted); background:transparent}.mobile-nav button.active{color:var(--green);font-weight:700}main{padding-top:28px;padding-bottom:85px}.resources,.form-grid{grid-template-columns:1fr}.lesson-list{grid-template-columns:1fr}.lesson-card{padding:0}.lesson-meta .status{display:none}.audio{padding:17px}.topbar .shell{gap:10px}.avatar{margin-right:auto}.hero-section{padding:36px 28px 32px}.hero-ayah{font-size:26px}.hero-photo{width:96px;height:96px}.resume-card{flex-direction:column;align-items:stretch;gap:16px}.resume-progress{min-width:0} }
+@media(max-width:560px){.quarters,.profile-stats{grid-template-columns:1fr}.audio{width:100%;gap:10px}.admin-table,.admin-table tbody,.admin-table tr,.admin-table td{display:block;width:100%}.admin-table thead{display:none}.admin-table tr{padding:10px;border-bottom:1px solid var(--line)}.admin-table td{padding:5px 0;border:0}.admin-table td:before{content:attr(data-label) ': ';color:var(--muted);font-size:12px}.hizb-tabs{flex-wrap:nowrap;overflow:auto;padding-bottom:4px}.hizb-tabs button{white-space:nowrap}.login{padding:18px}.hero-section{padding:28px 20px 24px;border-radius:18px}.hero-section{flex-direction:column;text-align:center}.hero-photo{width:80px;height:80px}.hero-ayah{font-size:22px}.hero-cta{flex-direction:column}.hero-cta .primary,.hero-cta .btn-outline{width:100%;text-align:center}}
+@media(max-width:560px){.activity-grid{grid-template-columns:1fr}.lesson-pager{grid-template-columns:1fr}.lesson-pager .resource:last-child{text-align:right}.activity-row{display:block}.activity-row span{display:block;margin-top:4px}.rich-audio{flex-wrap:wrap}.rich-audio .audio-title{order:3;flex-basis:100%}.speed{margin-right:auto}}
 @media(max-width:800px){.hizb-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.hizb-grid{grid-template-columns:1fr}.admin-item{align-items:flex-start;flex-direction:column;gap:8px}.admin-item>div:last-child{display:flex;gap:12px}}
 
-/* Home page hero photo (circular avatar style) */
-.home-photo {
-	width: clamp(88px, 12vw, 140px);
-	height: clamp(88px, 12vw, 140px);
-	border-radius: 50%;
-	object-fit: cover;
-	object-position: center;
-	display: block;
-	margin: 0 auto 12px;
-	border: 4px solid var(--surface);
-	box-shadow: var(--shadow-md);
-}
-.home-head {
-	display: flex;
-	align-items: center;
-	gap: 16px;
-	flex-direction: row-reverse;
-	margin-bottom: 18px;
-}
-.home-avatar {
-	width: 130px;
-	height: 130px;
-	border-radius: 50%;
-	object-fit: cover;
-	object-position: center 20%;
-	border: 4px solid var(--surface);
-	box-shadow: var(--shadow-md);
-	flex-shrink: 0;
-}
-@media (max-width:800px) {
-	.home-photo { width: clamp(72px, 14vw, 120px); height: clamp(72px, 14vw, 120px); }
-	.home-head { gap: 12px; }
-	.home-avatar { width: 76px; height: 76px; }
-}
-@media (max-width:480px) {
-	.home-photo { width: clamp(56px, 18vw, 88px); height: clamp(56px, 18vw, 88px); border:3px solid var(--surface); box-shadow:var(--shadow-sm); }
-	.home-avatar { width: 64px; height: 64px; }
-}
+

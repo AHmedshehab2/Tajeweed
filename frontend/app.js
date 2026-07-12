@@ -206,14 +206,16 @@ const curriculumPercent = () => {
       )
     : 0;
 };
-const quranPercent = () => Math.round((completedQuarters().length / 240) * 100);
+const totalQuarters = () => data.hizbs.reduce((sum, h) => sum + (h.quarters ? h.quarters.length : 0), 0);
+const quranPercent = () => { const total = totalQuarters(); return total ? Math.round((completedQuarters().length / total) * 100) : 0; };
 const audioPlayer = (recording, label) =>
-  `<div class="audio rich-audio" data-recording-id="${esc(recording.id)}"><button class="play" aria-label="تشغيل ${esc(recording.title)}" onclick="playRecording(this,'${recording.id}')">▶</button><div class="audio-title"><b>${esc(recording.title)}</b><span>${esc(label)} · رفع ${fmt(recording.uploadedAt)} · ${esc(recording.duration || "")}${recording.version ? ` · الإصدار ${recording.version}` : ""}</span><div class="seek-row"><span>00:00</span><input type="range" min="0" max="100" value="0" aria-label="موقع التسجيل" oninput="seekRecording(this)"><span>${esc(recording.duration || "00:00")}</span></div></div><button class="speed" onclick="cycleSpeed(this)" aria-label="تغيير سرعة التشغيل">1×</button></div>`;
+  `<div class="audio rich-audio" data-recording-id="${esc(recording.id)}"><button class="play" aria-label="تشغيل ${esc(recording.title)}" onclick="playRecording(this,'${recording.id}')">▶</button><div class="audio-title"><b>${esc(recording.title)}</b><span>${esc(label)} · رفع ${fmt(recording.uploadedAt)} · ${esc(recording.duration || "")}${recording.version ? ` · الإصدار ${recording.version}` : ""}</span><div class="seek-row"><span>00:00</span><input type="range" min="0" max="100" value="0" aria-label="موقع التسجيل" oninput="seekRecording(this)"><span>${esc(recording.duration || "00:00")}</span></div></div><button class="speed" onclick="cycleSpeed(this)" aria-label="تغيير سرعة التشغيل">1×</button>${isAdmin(state.session) ? `<button class="btn-delete-sm" onclick="deleteRecording('${recording.id}')" aria-label="حذف التسجيل">✕</button>` : ""}</div>`;
 const resourceLink = (resource, meta = "") => {
   const inner = `▤ ${esc(resource.title)}<span>${esc(resource.kind)}${meta ? ` · ${meta}` : ""}</span>`;
+  const deleteBtn = isAdmin(state.session) ? `<button class="btn-delete-sm resource-delete" onclick="event.preventDefault();event.stopPropagation();deleteResource('${resource.id}')" aria-label="حذف المورد">✕</button>` : "";
   if (!resource.fileUrl)
-    return `<span class="resource resource-disabled">${inner}</span>`;
-  return `<a class="resource" href="${esc(mediaUrl(resource.fileUrl))}" target="_blank" rel="noopener noreferrer">${inner}</a>`;
+    return `<span class="resource resource-disabled">${inner}${deleteBtn}</span>`;
+  return `<a class="resource" href="${esc(mediaUrl(resource.fileUrl))}" target="_blank" rel="noopener noreferrer">${inner}${deleteBtn}</a>`;
 };
 const progressBar = (value) =>
   `<div class="progress-line" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value}"><i style="width:${value}%"></i></div>`;
@@ -344,53 +346,18 @@ function register() {
 }
 function home() {
   const last = resolveLastLesson();
-  const lastQuarter = resolveLastQuarter();
-  const lessonRecording = allLessons()
-    .flatMap((lesson) =>
-      lesson.recordings.map((recording) => ({ lesson, recording })),
-    )
-    .sort((a, b) =>
-      b.recording.uploadedAt.localeCompare(a.recording.uploadedAt),
-    )[0];
-  const quranRecording = data.hizbs
-    .flatMap((hizb) =>
-      hizb.quarters.flatMap((quarter) =>
-        quarter.recordings.map((recording) => ({ hizb, quarter, recording })),
-      ),
-    )
-    .sort((a, b) =>
-      b.recording.uploadedAt.localeCompare(a.recording.uploadedAt),
-    )[0];
-  const khutbah = data.khutbahs
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
   const announcements = data.announcements.filter(
     (item) => !item.expiresAt || item.expiresAt >= TODAY,
   );
-  const recent = getRecentUploads(5);
-  const recentHtml = recent.length
-    ? recent
-        .map((item) =>
-          updateCard(
-            item.section,
-            item.title,
-            `رفع ${fmt(item.uploadedAt)}${item.meta ? ` · ${item.meta}` : ""}`,
-            item.action,
-          ),
-        )
-        .join("")
-    : empty("لا توجد موارد حديثة.");
-  const heroLesson = last
-    ? `<article class="card hero"><span class="eyebrow">تابع التعلّم</span><h2>${esc(last.title)}</h2><p>${esc(last.chapter.name)}</p><div class="lesson-path"><span>آخر درس زرته</span><span>•</span><b>${lessonStatus(last.id) === "completed" ? "اكتمل — انتقل لما بعده" : "تابع من حيث توقفت"}</b></div><button class="primary" onclick="openLesson('${last.id}')">تابع التعلّم ←</button></article>`
-    : `<article class="card hero"><span class="eyebrow">ابدأ رحلتك</span><h2>منهج التجويد</h2><p>استكشف الدروس وابدأ من الباب الأول.</p><button class="primary" onclick="go('curriculum')">عرض المنهج ←</button></article>`;
-  const quranCard = `<article class="card"><div class="section-title"><h3>تقدمك في القرآن</h3><button class="text-link" onclick="go('quran')">عرض القرآن</button></div><div class="progress-ring" style="background:conic-gradient(var(--gold) 0 ${quranPercent()}%,var(--line) ${quranPercent()}%)"><div>${quranPercent()}%<small>${completedQuarters().length} من 240 ربعاً</small></div></div>${
-    lastQuarter
-      ? `<p class="compact">آخر ربع: <button class="text-link" onclick="openQuarter('${lastQuarter.id}')">${esc(lastQuarter.hizb.title)} · ${esc(lastQuarter.name)}</button></p>`
-      : `<p class="compact">اختر ربعاً من صفحة القرآن لبدء المراجعة.</p>`
-  }</article>`;
-  const highlights = `${lessonRecording ? updateCard("أحدث تسجيل درس", lessonRecording.lesson.title, `رفع ${fmt(lessonRecording.recording.uploadedAt)} · ${lessonRecording.recording.duration}`, `openLesson('${lessonRecording.lesson.id}')`) : empty("لا توجد تسجيلات دروس بعد.")}${quranRecording ? updateCard("أحدث تصحيح قرآن", `${quranRecording.hizb.title} · ${quranRecording.quarter.name}`, `رفع ${fmt(quranRecording.recording.uploadedAt)} · ${quranRecording.recording.duration}`, `openQuarter('${quranRecording.quarter.id}')`) : empty("لا توجد تسجيلات قرآن بعد.")}${khutbah ? updateCard("أحدث خطبة", khutbah.title, `${fmt(khutbah.date)} · ${khutbah.duration}`, `openKhutbah('${khutbah.id}')`) : empty("لا توجد خطب بعد.")}`;
-  const weekly = `${lessonRecording ? updateCard("درس", lessonRecording.recording.title, lessonRecording.lesson.title, `openLesson('${lessonRecording.lesson.id}')`) : ""}${quranRecording ? updateCard("القرآن", quranRecording.recording.title, `${quranRecording.hizb.title} · ${quranRecording.quarter.name}`, `openQuarter('${quranRecording.quarter.id}')`) : ""}${khutbah ? updateCard("خطبة", khutbah.title, fmt(khutbah.date), `openKhutbah('${khutbah.id}')`) : ""}`;
-  return `<div class="shell"><div class="home-head"><img class="home-avatar" src="${esc(HOME_PHOTO)}" alt="صورة الشيخ" loading="lazy"><div><span class="eyebrow">السلام عليكم، ${esc(state.session.name)}</span><h1 class="headline">إِنَّ الَّذِينَ يَتْلُونَ كِتَابَ اللَّهِ وَأَقَامُوا الصَّلَاةَ وَأَنفَقُوا مِمَّا رَزَقْنَاهُمْ سِرًّا وَعَلَانِيَةً يَرْجُونَ تِجَارَةً لَّن تَبُورَ</h1></div></div><p class="sub">كل ما تحتاجه لمتابعة دروسك ومراجعة تلاوتك، في مكان واحد.</p><section class="grid dashboard-grid">${heroLesson}${quranCard}<div class="updates dashboard-highlights">${highlights}</div></section><section class="recent-section"><div class="section-title"><div><span class="eyebrow">هذا الأسبوع</span><h3>أضيف حديثاً</h3></div></div><div class="updates recent-uploads">${recentHtml || weekly || empty("لا توجد إضافات حديثة.")}</div></section><section class="announcement-stack">${announcements.map((item) => `<article class="announcement ${item.priority === "important" ? "important" : ""}"><span class="announce-tag">${item.priority === "important" ? "مهم" : "تذكير"} · ${item.target === "all" ? "لكل الطلاب" : esc(item.target)}</span><strong>${esc(item.title)}:</strong> ${esc(item.body)}</article>`).join("")}</section></div>`;
+  const totalLessons = allLessons().length;
+  const completedLessons = Object.values(progressCache.lessons).filter(
+    (s) => s === "completed",
+  ).length;
+  const lessonPercent = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const resumeCard = last
+    ? `<article class="resume-card"><div class="resume-info"><span class="eyebrow">${esc(last.chapter.name)}</span><h3>${esc(last.title)}</h3><p>آخر درس: ${lessonStatus(last.id) === "completed" ? "اكتمل" : "قيد التعلّم"}</p></div><div class="resume-progress"><span class="resume-percent">${lessonPercent}%</span>${progressBar(lessonPercent)}<button class="open" onclick="openLesson('${last.id}')">متابعة</button></div></article>`
+    : `<article class="resume-card"><div class="resume-info"><span class="eyebrow">ابدأ رحلتك</span><h3>منهج التجويد</h3><p>استكشف الدروس وابدأ من الباب الأول.</p></div><button class="open" onclick="go('curriculum')">عرض المنهج</button></article>`;
+  return `<div class="shell"><section class="hero-section"><img class="hero-photo" src="${esc(HOME_PHOTO)}" alt="صورة الشيخ" loading="lazy"><div class="hero-text"><h1 class="hero-ayah">إِنَّ الَّذِينَ يَتْلُونَ كِتَابَ اللَّهِ وَأَقَامُوا الصَّلَاةَ وَأَنفَقُوا مِمَّا رَزَقْنَاهُمْ سِرًّا وَعَلَانِيَةً يَرْجُونَ تِجَارَةً لَّن تَبُورَ</h1><p class="hero-sub">كل ما تحتاجه لمتابعة دروسك ومراجعة تلاوتك، في مكان واحد.</p><div class="hero-search"><span class="hero-search-icon">🔍</span><input type="text" placeholder="ابحث عن درس، سورة، أو موضوع..." onfocus="go('search')"></div><div class="hero-cta"><button class="primary" onclick="go('curriculum')">ابدأ رحلتك الآن</button><button class="btn-outline" onclick="go('quran')">استكشف القرآن</button></div></div></section><section style="margin-top:28px">${resumeCard}</section><section class="announcement-stack">${announcements.map((item) => `<article class="announcement ${item.priority === "important" ? "important" : ""}"><span class="announce-tag">${item.priority === "important" ? "مهم" : "تذكير"} · ${item.target === "all" ? "لكل الطلاب" : esc(item.target)}</span><strong>${esc(item.title)}:</strong> ${esc(item.body)}</article>`).join("")}</section></div>`;
 }
 function updateCard(type, title, meta, action) {
   return `<button class="update" onclick="${action}"><div class="update-type">${esc(type)}</div><h4>${esc(title)}</h4><p>${esc(meta)}</p></button>`;
@@ -415,7 +382,12 @@ function lessonRows(lessons) {
                 : status === "in-progress"
                   ? "قيد التقدم"
                   : "لم يبدأ";
-          return `<article class="lesson-row"><span class="number">${String(index + 1).padStart(2, "0")}</span><div><h3>${esc(lesson.title)}</h3><p>${esc(lesson.description)}</p></div><span class="status status-${status}">${statusLabel}</span><button class="open" onclick="openLesson('${lesson.id}')">فتح الدرس</button></article>`;
+          const boardImage = (lesson.resources || []).find((r) => r.kind === "صورة" && r.fileUrl);
+          const recCount = (lesson.recordings || []).length;
+          const artHtml = boardImage
+            ? `<img class="lesson-art-img" src="${esc(mediaUrl(boardImage.fileUrl))}" alt="${esc(lesson.title)}" loading="lazy">`
+            : `<div class="lesson-art-fallback"><span>${String(index + 1).padStart(2, "0")}</span></div>`;
+          return `<article class="card lesson-card"><div class="lesson-art">${artHtml}</div><div class="lesson-body"><span class="eyebrow">${esc(lesson.chapter.name)}</span><h3>${esc(lesson.title)}</h3><p>${esc(lesson.description || "")}</p><div class="lesson-meta"><span class="status status-${status}">${statusLabel}</span>${recCount ? `<span class="pill">${recCount} تسجيل</span>` : ""}</div><button class="open" onclick="openLesson('${lesson.id}')">فتح الدرس</button></div></article>`;
         })
         .join("")
     : empty("لا توجد نتائج مطابقة.");
@@ -430,7 +402,12 @@ function lesson() {
   const recordings = lesson.recordings
     .slice()
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-  return `<div class="shell lesson-page">${crumbs(["المنهج", lesson.chapter.name, lesson.title])}<h1>${esc(lesson.title)}</h1><p class="sub">${esc(lesson.description)}</p><section class="card objectives"><div class="section-title"><h3>أهداف الدرس</h3><button class="open" onclick="advanceLesson('${lesson.id}')">${lessonStatus(lesson.id) === "completed" ? "✓ مكتمل" : lessonStatus(lesson.id) === "in-progress" ? "تحديد كمكتمل" : "بدء الدرس"}</button></div><ul>${lesson.objectives.map((objective) => `<li>${esc(objective)}</li>`).join("")}</ul></section><section class="card recording-section"><div class="section-title"><h3>تسجيلات الدرس</h3></div>${
+  const boardImage = (lesson.resources || []).find((r) => r.kind === "صورة" && r.fileUrl);
+  const heroUrl = boardImage ? mediaUrl(boardImage.fileUrl) : "";
+  const boardHero = boardImage
+    ? `<div class="lesson-hero" onclick="openImageOverlay('${esc(heroUrl)}', '${esc(lesson.title)}')" role="button" tabindex="0" aria-label="عرض صورة السبورة"><img src="${esc(heroUrl)}" alt="${esc(lesson.title)}" loading="lazy"><span class="lesson-hero-badge">عرض الصورة</span></div>`
+    : "";
+  return `<div class="shell lesson-page">${crumbs(["المنهج", lesson.chapter.name, lesson.title])}${boardHero}<h1>${esc(lesson.title)}</h1><p class="sub">${esc(lesson.description)}</p><section class="card objectives"><div class="section-title"><h3>أهداف الدرس</h3><button class="open" onclick="advanceLesson('${lesson.id}')">${lessonStatus(lesson.id) === "completed" ? "✓ مكتمل" : lessonStatus(lesson.id) === "in-progress" ? "تحديد كمكتمل" : "بدء الدرس"}</button></div><ul>${lesson.objectives.map((objective) => `<li>${esc(objective)}</li>`).join("")}</ul></section><section class="card recording-section"><div class="section-title"><h3>تسجيلات الدرس</h3></div>${
     recordings.length
       ? `${audioPlayer(recordings[0], "أحدث تسجيل")}${
           recordings.length > 1
@@ -444,7 +421,7 @@ function lesson() {
   }</section><section class="card resource-block"><div class="section-title"><h3>الموارد والمرفقات</h3></div><div class="resources">${lesson.resources.map((resource) => resourceLink(resource, `رفع ${fmt(resource.uploadedAt)}`)).join("") || empty("لا تتوفر ملفات أو صور لهذا الدرس بعد.")}</div></section><nav class="lesson-pager" aria-label="التنقل بين الدروس">${previous ? `<button class="resource" onclick="openLesson('${previous.id}')">→ الدرس السابق<span>${esc(previous.title)}</span></button>` : "<span></span>"}<button class="open" onclick="selectChapter('${lesson.chapter.id}');go('curriculum')">العودة إلى الباب</button>${next ? `<button class="resource" onclick="openLesson('${next.id}')">الدرس التالي ←<span>${esc(next.title)}</span></button>` : "<span></span>"}</nav></div>`;
 }
 function quran() {
-  return `<div class="shell"><div class="page-heading"><div><span class="eyebrow">التلاوة والتصحيح</span><h1 class="headline">القرآن</h1><p class="sub">اختر الحزب ثم الربع الذي تريد مراجعته.</p></div><div class="card progress-summary"><b>${completedQuarters().length} / 240</b>${progressBar(quranPercent())}<small>ربعاً مكتملًا</small></div></div><input id="quran-search" class="search quran-search" oninput="filterQuran(this.value)" placeholder="ابحث بالجزء أو الحزب أو الربع…" aria-label="البحث في القرآن"><section id="hizb-grid" class="hizb-grid">${data.hizbs.map(hizbCard).join("")}</section></div>`;
+  return `<div class="shell"><div class="page-heading"><div><span class="eyebrow">التلاوة والتصحيح</span><h1 class="headline">القرآن</h1><p class="sub">اختر الحزب ثم الربع الذي تريد مراجعته.</p></div><div class="card progress-summary"><b>${completedQuarters().length} / ${totalQuarters()}</b>${progressBar(quranPercent())}<small>ربعاً مكتملًا</small></div></div><input id="quran-search" class="search quran-search" oninput="filterQuran(this.value)" placeholder="ابحث بالجزء أو الحزب أو الربع…" aria-label="البحث في القرآن"><section id="hizb-grid" class="hizb-grid">${data.hizbs.map(hizbCard).join("")}</section></div>`;
 }
 function hizbCard(hizb) {
   const text =
@@ -489,18 +466,43 @@ function khutbahs() {
   return `<div class="shell"><div class="page-heading"><div><span class="eyebrow">خطب ودروس عامة</span><h1 class="headline">الخطب</h1><p class="sub">مكتبة خطب الشيخ الأسبوعية.</p></div><input class="search" oninput="filterKhutbahs(this.value)" placeholder="ابحث في الخطب…" aria-label="البحث في الخطب"></div><section id="khutbah-grid" class="khutbahs">${list.map(khutbahCard).join("")}</section></div>`;
 }
 function khutbahCard(khutbah) {
-  return `<article class="card khutbah" data-search="${esc(`${khutbah.title} ${khutbah.description}`.toLowerCase())}"><div class="khutbah-art">وَعِظْ</div><div class="khutbah-body"><span class="eyebrow">خطبة الجمعة</span><h3>${esc(khutbah.title)}</h3><p>${fmt(khutbah.date)} · ${khutbah.duration}</p><button class="text-link" onclick="openKhutbah('${khutbah.id}')">استمع للخطبة ←</button></div></article>`;
+  const recCount = (khutbah.recordings || []).length;
+  return `<article class="card khutbah" data-search="${esc(`${khutbah.title} ${khutbah.description}`.toLowerCase())}"><div class="khutbah-body"><span class="eyebrow">خطبة الجمعة${recCount ? ` · ${recCount} تسجيل(ات)` : ""}</span><h3>${esc(khutbah.title)}</h3><p>${fmt(khutbah.date)}${khutbah.duration ? ` · ${khutbah.duration}` : ""}</p><button class="text-link" onclick="openKhutbah('${khutbah.id}')">استمع للخطبة ←</button></div></article>`;
 }
 function khutbah() {
   const item = data.khutbahs.find((khutbah) => khutbah.id === state.khutbahId);
   if (!item) return empty("الخطبة غير موجودة.");
-  return `<div class="shell lesson-page">${crumbs(["الخطب", item.title])}<h1>${esc(item.title)}</h1><p class="sub">${fmt(item.date)}</p><section class="card recording-section"><p>${esc(item.description)}</p>${item.audioUrl ? audioPlayer({ id: item.id, title: item.title, duration: item.duration, uploadedAt: item.date, audioUrl: item.audioUrl }, "خطبة الجمعة") : empty("لم يتم رفع تسجيل لهذه الخطبة بعد.")}<div class="resources">${(item.resources || []).map((resource) => resourceLink(resource)).join("")}</div></section></div>`;
+  const recordings = item.recordings || [];
+  const legacyRecording = item.audioUrl && !recordings.length
+    ? [{ id: item.id, title: item.title, duration: item.duration, uploadedAt: item.date, audioUrl: item.audioUrl }]
+    : [];
+  const allRecordings = [...recordings, ...legacyRecording];
+  const recordingsHtml = allRecordings.length
+    ? allRecordings.map((rec) => `<div class="recording-section">${audioPlayer({ ...rec, uploadedAt: rec.uploadedAt || item.date }, "خطبة الجمعة")}</div>`).join("")
+    : empty("لم يتم رفع تسجيل لهذه الخطبة بعد.");
+  const resourcesHtml = (item.resources || []).length
+    ? `<div class="resources">${item.resources.map((resource) => resourceLink(resource)).join("")}</div>`
+    : "";
+  return `<div class="shell lesson-page">${crumbs(["الخطب", item.title])}<h1>${esc(item.title)}</h1><p class="sub">${fmt(item.date)}</p><section class="card recording-section"><p>${esc(item.description)}</p>${recordingsHtml}${resourcesHtml}</section></div>`;
 }
+function activityHeatmap() {
+  const days = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  progressCache.activity.forEach((item) => {
+    const d = new Date(item.date);
+    const jsDay = d.getDay();
+    const arabicIdx = (jsDay + 1) % 7;
+    counts[arabicIdx]++;
+  });
+  const max = Math.max(...counts, 1);
+  return `<div class="heatmap">${days.map((day, i) => `<div class="heatmap-row"><span class="heatmap-label">${day}</span><div class="heatmap-bar-track"><div class="heatmap-bar" style="width:${Math.round((counts[i] / max) * 100)}%"></div></div><span class="heatmap-count">${counts[i]}</span></div>`).join("")}</div>`;
+}
+
 function profile() {
   const last = resolveLastLesson();
   const lastQuarter = resolveLastQuarter();
   const activity = progressCache.activity;
-  return `<div class="shell profile"><div class="profile-head"><div class="avatar">${esc(state.session.name.slice(0, 2))}</div><div><h1 class="headline" style="margin:0">${esc(state.session.name)}</h1><p class="sub">طالب في مدرسة القرآن</p></div></div><section class="grid activity-grid"><article class="card"><span class="eyebrow">آخر درس</span><h3>${last ? esc(last.title) : "لم تبدأ بعد"}</h3>${last ? `<button class="text-link" onclick="openLesson('${last.id}')">استئناف الدرس ←</button>` : `<button class="text-link" onclick="go('curriculum')">استكشف المنهج ←</button>`}</article><article class="card"><span class="eyebrow">آخر ربع</span><h3>${lastQuarter ? `${esc(lastQuarter.hizb.title)} · ${esc(lastQuarter.name)}` : "لم تُراجع بعد"}</h3>${lastQuarter ? `<button class="text-link" onclick="openQuarter('${lastQuarter.id}')">فتح الربع ←</button>` : `<button class="text-link" onclick="go('quran')">عرض القرآن ←</button>`}</article><article class="card"><span class="eyebrow">تقدّم المنهج</span><h3>${allLessons().filter((lesson) => lessonStatus(lesson.id) === "completed").length} من ${allLessons().length} درس</h3>${progressBar(curriculumPercent())}</article></section><section class="card" style="margin-top:17px"><div class="section-title"><h3>نشاط الاستماع الأخير</h3></div>${activity.length ? activity.map((item) => `<div class="activity-row"><b>${esc(item.title)}</b><span>${esc(item.kind)} · ${fmt(item.date)}</span></div>`).join("") : empty("ابدأ الاستماع إلى أي تسجيل ليظهر نشاطك هنا.")}</section></div>`;
+  return `<div class="shell profile"><div class="profile-head"><div class="avatar">${esc(state.session.name.slice(0, 2))}</div><div><h1 class="headline" style="margin:0">${esc(state.session.name)}</h1><p class="sub">طالب في مدرسة القرآن</p></div></div><section class="grid activity-grid"><article class="card"><span class="eyebrow">آخر درس</span><h3>${last ? esc(last.title) : "لم تبدأ بعد"}</h3>${last ? `<button class="text-link" onclick="openLesson('${last.id}')">استئناف الدرس ←</button>` : `<button class="text-link" onclick="go('curriculum')">استكشف المنهج ←</button>`}</article><article class="card"><span class="eyebrow">آخر ربع</span><h3>${lastQuarter ? `${esc(lastQuarter.hizb.title)} · ${esc(lastQuarter.name)}` : "لم تُراجع بعد"}</h3>${lastQuarter ? `<button class="text-link" onclick="openQuarter('${lastQuarter.id}')">فتح الربع ←</button>` : `<button class="text-link" onclick="go('quran')">عرض القرآن ←</button>`}</article><article class="card"><span class="eyebrow">تقدّم المنهج</span><h3>${allLessons().filter((lesson) => lessonStatus(lesson.id) === "completed").length} من ${allLessons().length} درس</h3>${progressBar(curriculumPercent())}</article></section><section class="card" style="margin-top:17px"><div class="section-title"><h3>نشاط الاستماع الأخير</h3></div>${activity.length ? activity.map((item) => `<div class="activity-row"><b>${esc(item.title)}</b><span>${esc(item.kind)} · ${fmt(item.date)}</span></div>`).join("") : empty("ابدأ الاستماع إلى أي تسجيل ليظهر نشاطك هنا.")}</section><section class="card" style="margin-top:17px"><div class="section-title"><h3>نشاط أسبوعي</h3></div>${activityHeatmap()}</section></div>`;
 }
 function search() {
   return `<div class="shell"><div class="page-heading"><div><span class="eyebrow">بحث شامل</span><h1 class="headline">ابحث في محتوى التعلّم</h1><p class="sub">الدروس والأبواب والقرآن والخطب في مكان واحد.</p></div><input id="global-search" autofocus class="search" oninput="filterGlobal(this.value)" placeholder="مثال: الإقلاب" aria-label="بحث شامل"></div><section id="global-results">${empty("اكتب كلمة للبحث في جميع المحتوى.")}</section></div>`;
@@ -522,19 +524,9 @@ function adminContent() {
   if (state.adminTab === "upload") return uploadForm();
   if (state.adminTab === "curriculum") return curriculumAdmin();
   if (state.adminTab === "quran")
-    return `<h2>إدارة القرآن</h2>${adminTable(
-      ["الحزب", "الجزء", "الأرباع"],
-      data.hizbs.map((h) => [
-        h.title,
-        `الجزء ${h.juz}`,
-        "إدارة التسجيلات من «رفع مورد»",
-      ]),
-    )}`;
+    return `<div class="admin-section"><div class="section-title"><h2>إدارة القرآن</h2><button class="primary" onclick="document.getElementById('hizb-form')?.scrollIntoView()">+ إضافة حزب</button></div><form id="hizb-form" class="editor-form" onsubmit="addHizb(event)"><h3>إضافة حزب جديد</h3><div class="form-grid"><div class="field"><label>رقم الحزب</label><input id="hizb-number" required type="number" min="1" placeholder="مثال: 61"></div><div class="field"><label>الجزء</label><input id="hizb-juz" type="number" min="1" max="30" placeholder="اترك فارغاً للحساب التلقائي"></div></div><div class="field"><label>العنوان</label><input id="hizb-title" required placeholder="مثال: الحزب 61"></div><button class="primary" type="submit">إضافةحزب</button></form><section class="admin-list">${data.hizbs.length ? data.hizbs.map((h) => `<article class="admin-item"><div style="flex:1"><b>${esc(h.title)}</b><span>الجزء ${h.juz} · ${h.quarters ? h.quarters.length : 0} أرباع</span><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${(h.quarters || []).map((q) => `<span class="pill" style="display:inline-flex;align-items:center;gap:4px">${esc(q.name)}<button class="text-link" style="padding:0;font-size:11px" onclick="deleteQuarter('${h.id}','${q.id}')">✕</button></span>`).join("")}<button class="text-link" style="font-size:12px" onclick="addQuarter('${h.id}')">+ ربع</button></div></div><div><button class="text-link" onclick="deleteHizb('${h.id}')">حذف الحزب</button></div></article>`).join("") : empty("لا توجد أحزاب بعد. أضف حزباً من النموذج أعلاه.")}</section></div>`;
   if (state.adminTab === "khutbahs")
-    return `<h2>إدارة الخطب</h2>${adminTable(
-      ["العنوان", "التاريخ", "إدارة"],
-      data.khutbahs.map((k) => [k.title, fmt(k.date), "رفع تسجيل أو ملف داعم"]),
-    )}`;
+    return `<div class="admin-section"><div class="section-title"><h2>إدارة الخطب</h2><button class="primary" onclick="document.getElementById('khutbah-form')?.scrollIntoView()">+ إضافة خطبة</button></div><form id="khutbah-form" class="editor-form" onsubmit="addKhutbah(event)"><h3>إضافة خطبة جديدة</h3><div class="form-grid"><div class="field"><label>العنوان</label><input id="khutbah-title" required placeholder="مثال: فضل الصبر"></div><div class="field"><label>التاريخ</label><input id="khutbah-date" required type="date"></div></div><div class="field"><label>الوصف</label><input id="khutbah-description" placeholder="وصف مختصر للخطبة"></div><button class="primary" type="submit">إضافة</button></form><section class="admin-list">${data.khutbahs.length ? data.khutbahs.map((k) => `<article class="admin-item"><div><b>${esc(k.title)}</b><span>${fmt(k.date)}${k.recordings && k.recordings.length ? ` · ${k.recordings.length} تسجيل(ات)` : ""}</span></div><div><button class="text-link" onclick="deleteKhutbah('${k.id}')">حذف</button></div></article>`).join("") : empty("لا توجد خطب بعد. أضف خطبة جديدة من النموذج أعلاه.")}</section></div>`;
   if (state.adminTab === "announcements")
     return `<h2>الإعلانات</h2>${adminTable(
       ["العنوان", "ينتهي في", "الأولوية"],
@@ -591,10 +583,11 @@ function chapterForm(chapter) {
 function lessonForm(lesson) {
   if (state.lessonEditor == null) return "";
   const isNew = state.lessonEditor === "new";
-  return `<form class="editor-form" onsubmit="saveLesson(event)"><h3>${isNew ? "إضافة درس" : "تعديل أو نقل الدرس"}</h3><input type="hidden" id="lesson-id" value="${lesson?.id || ""}"><input type="hidden" id="source-chapter" value="${lesson?.chapter.id || ""}"><div class="form-grid"><div class="field"><label>عنوان الدرس</label><input id="lesson-title" required value="${esc(lesson?.title || "")}"></div><div class="field"><label>الباب</label><select id="lesson-chapter" required>${chapterOptions(lesson?.chapter.id)}</select></div></div><div class="field"><label>وصف</label><input id="lesson-description" value="${esc(lesson?.description || "")}"></div><button class="primary" type="submit">حفظ الدرس</button><button class="text-link" type="button" onclick="cancelEditors()">إلغاء</button></form>`;
+  const objectivesText = lesson?.objectives?.length ? lesson.objectives.join("\n") : "";
+  return `<form class="editor-form" onsubmit="saveLesson(event)"><h3>${isNew ? "إضافة درس" : "تعديل أو نقل الدرس"}</h3><input type="hidden" id="lesson-id" value="${lesson?.id || ""}"><input type="hidden" id="source-chapter" value="${lesson?.chapter.id || ""}"><div class="form-grid"><div class="field"><label>عنوان الدرس</label><input id="lesson-title" required value="${esc(lesson?.title || "")}"></div><div class="field"><label>الباب</label><select id="lesson-chapter" required>${chapterOptions(lesson?.chapter.id)}</select></div></div><div class="field"><label>وصف</label><input id="lesson-description" value="${esc(lesson?.description || "")}"></div><div class="field"><label>أهداف الدرس</label><textarea id="lesson-objectives" rows="4" placeholder="هدف واحد في كل سطر">${esc(objectivesText)}</textarea><small>اكتب كل هدف في سطر منفصل.</small></div><button class="primary" type="submit">حفظ الدرس</button><button class="text-link" type="button" onclick="cancelEditors()">إلغاء</button></form>`;
 }
 function uploadForm() {
-  return `<h2>رفع مورد جديد</h2><p class="sub">يرتبط كل ملف مباشرة بالدرس أو الربع أو الخطبة المختارة.</p><form class="upload-form" onsubmit="uploadResource(event)"><div class="form-grid"><div class="field"><label for="upload-area">قسم المحتوى</label><select id="upload-area" onchange="refreshUploadTargets()"><option value="curriculum">المنهج</option><option value="quran">القرآن</option><option value="khutbah">الخطب</option></select></div><div class="field"><label for="upload-target">المحتوى المرتبط</label><select id="upload-target">${uploadTargets("curriculum")}</select></div><div class="field"><label for="upload-title">عنوان المورد</label><input id="upload-title" required placeholder="مثال: تسجيل شرح الإظهار"></div><div class="field"><label for="upload-type">نوع المورد</label><select id="upload-type"><option value="recording">تسجيل صوتي</option><option value="pdf">ملف PDF أو مذكرة</option><option value="image">صورة سبورة / صورة</option><option value="attachment">ملف إضافي</option></select></div></div><div class="field upload-file"><label for="upload-file">اختر الملف</label><input id="upload-file" type="file" required accept="audio/*,.pdf,image/*,.doc,.docx,.ppt,.pptx"><small>يُخزَّن الملف على الخادم ويُعرض للطلاب بعد الرفع.</small></div><button class="primary" type="submit">رفع وإرفاق المورد</button></form>`;
+  return `<h2>رفع مورد جديد</h2><p class="sub">يرتبط كل ملف مباشرة بالدرس أو الربع أو الخطبة المختارة.</p><form class="upload-form" onsubmit="uploadResource(event)"><div class="form-grid"><div class="field"><label for="upload-area">قسم المحتوى</label><select id="upload-area" onchange="refreshUploadTargets()"><option value="curriculum">المنهج</option><option value="quran">القرآن</option><option value="khutbah">الخطب</option></select></div><div class="field"><label for="upload-target">المحتوى المرتبط</label><select id="upload-target">${uploadTargets("curriculum")}</select></div><div class="field"><label for="upload-title">عنوان المورد</label><input id="upload-title" required placeholder="مثال: تسجيل شرح الإظهار"></div><div class="field"><label for="upload-type">نوع المورد</label><select id="upload-type"><option value="recording">تسجيل صوتي</option><option value="pdf">ملف PDF أو مذكرة</option><option value="image">صورة سبورة / صورة</option><option value="attachment">ملف إضافي</option></select></div></div><div class="field upload-file"><label for="upload-file">اختر الملف</label><input id="upload-file" type="file" required accept="audio/*,.pdf,image/*,.doc,.docx,.ppt,.pptx"><small>يُخزَّن الملف على الخادم ويُعرض للطلاب بعد الرفع.</small></div><div class="field upload-file upload-board" style="display:none"><label for="upload-board">صورة السبورة (اختياري)</label><input id="upload-board" type="file" accept="image/*"><small>تُستخدم كصورة بديلة للدرس إذا لم تتوفر صورة مرفقة مسبقًا.</small></div><button class="primary" type="submit">رفع وإرفاق المورد</button></form>`;
 }
 function uploadTargets(area) {
   if (area === "curriculum")
@@ -618,8 +611,30 @@ function uploadTargets(area) {
     .join("");
 }
 
+function pushHash(hash) {
+  history.pushState(null, "", hash);
+}
+function stateToHash() {
+  const s = state;
+  if (s.page === "lesson" && s.lessonId) return `#lesson/${s.lessonId}`;
+  if (s.page === "quarter" && s.quarterId) return `#quarter/${s.quarterId}`;
+  if (s.page === "khutbah" && s.khutbahId) return `#khutbah/${s.khutbahId}`;
+  return `#${s.page}`;
+}
+function hashToState() {
+  const hash = location.hash.replace(/^#\/?/, "");
+  if (!hash || hash === "home") return { page: "home" };
+  const [page, id] = hash.split("/");
+  if (page === "lesson" && id) return { page: "lesson", lessonId: id };
+  if (page === "quarter" && id) return { page: "quarter", quarterId: id };
+  if (page === "khutbah" && id) return { page: "khutbah", khutbahId: id };
+  if (["curriculum", "quran", "khutbahs", "profile", "admin", "search"].includes(page)) return { page };
+  return { page: "home" };
+}
+
 function go(page) {
   state.page = page;
+  pushHash(stateToHash());
   render();
   window.scrollTo(0, 0);
 }
@@ -628,6 +643,7 @@ function openLesson(id) {
   state.lessonId = id;
   write(STORAGE.lastLesson, id);
   state.page = "lesson";
+  pushHash(stateToHash());
   render();
   window.scrollTo(0, 0);
 }
@@ -636,6 +652,7 @@ function openQuarter(id) {
   state.quarterId = id;
   write(STORAGE.lastQuarter, id);
   state.page = "quarter";
+  pushHash(stateToHash());
   render();
   window.scrollTo(0, 0);
 }
@@ -643,6 +660,7 @@ function openKhutbah(id) {
   if (!data.khutbahs.some((item) => item.id === id)) return;
   state.khutbahId = id;
   state.page = "khutbah";
+  pushHash(stateToHash());
   render();
   window.scrollTo(0, 0);
 }
@@ -1045,18 +1063,19 @@ async function saveLesson(event) {
   const id = $("#lesson-id").value,
     targetId = $("#lesson-chapter").value,
     title = $("#lesson-title").value.trim(),
-    description = $("#lesson-description").value.trim();
+    description = $("#lesson-description").value.trim(),
+    objectives = ($("#lesson-objectives").value || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (!targetId || !title) return;
   try {
     if (!id)
       await apiFetch("/lessons", {
         method: "POST",
-        body: JSON.stringify({ chapterId: targetId, title, description }),
+        body: JSON.stringify({ chapterId: targetId, title, description, objectives }),
       });
     else
       await apiFetch(`/lessons/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ chapterId: targetId, title, description }),
+        body: JSON.stringify({ chapterId: targetId, title, description, objectives }),
       });
     await loadAll();
     state.lessonEditor = null;
@@ -1068,6 +1087,8 @@ async function saveLesson(event) {
 function refreshUploadTargets() {
   const target = $("#upload-target");
   target.innerHTML = uploadTargets($("#upload-area").value);
+  const boardEl = document.querySelector(".upload-board");
+  if (boardEl) boardEl.style.display = $("#upload-area").value === "curriculum" ? "" : "none";
 }
 async function uploadResource(event) {
   event.preventDefault();
@@ -1084,10 +1105,13 @@ async function uploadResource(event) {
   form.append("title", title);
   form.append("type", type);
   form.append("file", file);
+  const boardFile = $("#upload-board") && $("#upload-board").files[0];
+  if (boardFile) form.append("board", boardFile);
   try {
     await apiFetch("/upload", { method: "POST", body: form });
     await loadAll();
     event.target.reset();
+    if (boardFile) refreshUploadTargets();
     alert("تم رفع المورد وربطه بالمحتوى المختار.");
     render();
   } catch (err) {
@@ -1134,9 +1158,21 @@ async function addAnnouncement(event) {
   }
 }
 
+function showConfirm(title, message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `<div class="confirm-card"><h3>${esc(title)}</h3><p>${esc(message)}</p><div class="confirm-actions"><button class="btn-danger">تأكيد الحذف</button><button class="btn-ghost">إلغاء</button></div></div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".btn-danger").onclick = () => { overlay.remove(); resolve(true); };
+    overlay.querySelector(".btn-ghost").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+  });
+}
+
 async function deleteAnnouncement(id) {
   if (!isAdmin(state.session)) return;
-  if (!window.confirm("هل تريد حذف هذا الإعلان؟")) return;
+  if (!await showConfirm("حذف الإعلان", "هل تريد حذف هذا الإعلان؟ لا يمكن التراجع عن هذا الإجراء.")) return;
   try {
     await apiFetch(`/announcements/${id}`, { method: "DELETE" });
     await loadAll();
@@ -1144,6 +1180,133 @@ async function deleteAnnouncement(id) {
   } catch (err) {
     alert(err.message);
   }
+}
+
+async function deleteKhutbah(id) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حذف الخطبة", "هل تريد حذف هذه الخطبة؟ سيتم حذف جميع التسجيلات والملفات المرتبطة. لا يمكن التراجع عن هذا الإجراء.")) return;
+  try {
+    await apiFetch(`/khutbahs/${id}`, { method: "DELETE" });
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function addKhutbah(event) {
+  event.preventDefault();
+  if (!isAdmin(state.session)) return;
+  const title = $("#khutbah-title").value.trim();
+  const date = $("#khutbah-date").value;
+  const description = $("#khutbah-description").value.trim();
+  try {
+    await apiFetch("/khutbahs", {
+      method: "POST",
+      body: JSON.stringify({ title, date, description }),
+    });
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function addHizb(event) {
+  event.preventDefault();
+  if (!isAdmin(state.session)) return;
+  const number = $("#hizb-number").value;
+  const juz = $("#hizb-juz").value || undefined;
+  const title = $("#hizb-title").value.trim();
+  try {
+    await apiFetch("/quran", {
+      method: "POST",
+      body: JSON.stringify({ number, juz, title }),
+    });
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteHizb(id) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حذف الحزب", "هل تريد حذف هذا الحزب وكل أرباعه وتسجيلاته؟ لا يمكن التراجع.")) return;
+  try {
+    await apiFetch(`/quran/${id}`, { method: "DELETE" });
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function addQuarter(hizbId) {
+  if (!isAdmin(state.session)) return;
+  const name = prompt("اسم الربع الجديد:");
+  if (!name || !name.trim()) return;
+  try {
+    await apiFetch(`/quran/${hizbId}/quarters`, {
+      method: "POST",
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteQuarter(hizbId, quarterId) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حذف الربع", "هل تريد حذف هذا الربع وتسجيلاته؟")) return;
+  try {
+    await apiFetch(`/quran/${hizbId}/quarters/${quarterId}`, { method: "DELETE" });
+    await loadAll();
+    render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteRecording(id) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حذف التسجيل", "هل تريد حذف هذا التسجيل؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+  try {
+    await apiFetch(`/upload/recordings/${id}`, { method: "DELETE" });
+    progressCache.activity = progressCache.activity.filter((a) => a.refId !== id);
+    await loadAll();
+    if (state.page === "lesson") openLesson(state.lessonId);
+    else if (state.page === "khutbah") openKhutbah(state.khutbahId);
+    else if (state.page === "quarter") openQuarter(state.quarterId);
+    else render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteResource(id) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حذف المورد", "هل تريد حذف هذا المورد؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+  try {
+    await apiFetch(`/upload/resources/${id}`, { method: "DELETE" });
+    await loadAll();
+    if (state.page === "lesson") openLesson(state.lessonId);
+    else if (state.page === "khutbah") openKhutbah(state.khutbahId);
+    else if (state.page === "quarter") openQuarter(state.quarterId);
+    else render();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function openImageOverlay(url, title) {
+  const overlay = document.createElement("div");
+  overlay.className = "confirm-overlay image-overlay";
+  overlay.innerHTML = `<div class="image-overlay-card"><div class="image-overlay-header"><h3>${esc(title)}</h3><div class="image-overlay-actions"><a class="primary" href="${esc(url)}" download="${esc(title)}">تحميل الصورة</a><button class="btn-ghost" onclick="this.closest('.image-overlay').remove()">إغلاق</button></div></div><img src="${esc(url)}" alt="${esc(title)}"></div>`;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 async function init() {
@@ -1171,6 +1334,22 @@ async function init() {
       if (err.message === "غير مصرح") state.session = null;
     }
   }
+
+  const incoming = hashToState();
+  if (incoming.page) state.page = incoming.page;
+  if (incoming.lessonId) state.lessonId = incoming.lessonId;
+  if (incoming.quarterId) state.quarterId = incoming.quarterId;
+  if (incoming.khutbahId) state.khutbahId = incoming.khutbahId;
+
   render();
+
+  window.addEventListener("popstate", () => {
+    const s = hashToState();
+    if (s.page) state.page = s.page;
+    if (s.lessonId) state.lessonId = s.lessonId;
+    if (s.quarterId) state.quarterId = s.quarterId;
+    if (s.khutbahId) state.khutbahId = s.khutbahId;
+    render();
+  });
 }
 init();

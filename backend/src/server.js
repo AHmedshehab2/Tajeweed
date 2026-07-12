@@ -8,6 +8,8 @@ const contentRoutes = require('./routes/content');
 const announcementRoutes = require('./routes/announcements');
 const progressRoutes = require('./routes/progress');
 const uploadRoutes = require('./routes/upload');
+const khutbahRoutes = require('./routes/khutbahs');
+const quranRoutes = require('./routes/quran');
 
 const app = express();
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*' }));
@@ -19,6 +21,8 @@ app.use('/api', contentRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/khutbahs', khutbahRoutes);
+app.use('/api/quran', quranRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 

@@ -75,7 +75,8 @@ model Khutbah {
   duration    String?
   audioUrl    String?
 
-  resources Resource[]
+  resources  Resource[]
+  recordings Recording[]
 }
 
 // Recording/Resource attach to exactly one of lesson/quarter/khutbah.
@@ -91,6 +92,8 @@ model Recording {
   lesson    Lesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   quarterId String?
   quarter   Quarter? @relation(fields: [quarterId], references: [id], onDelete: Cascade)
+  khutbahId String?
+  khutbah   Khutbah? @relation(fields: [khutbahId], references: [id], onDelete: Cascade)
 }
 
 model Resource {

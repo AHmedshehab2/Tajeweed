@@ -29,7 +29,7 @@ router.get('/content', requireAuth, async (req, res) => {
       orderBy: { number: 'asc' },
       include: { quarters: { include: { recordings: { select: recSelect }, resources: { select: resSelect } }, orderBy: { number: 'asc' } } },
     }),
-    prisma.khutbah.findMany({ orderBy: { date: 'desc' }, include: { resources: { select: resSelect } } }),
+    prisma.khutbah.findMany({ orderBy: { date: 'desc' }, include: { resources: { select: resSelect }, recordings: { select: recSelect, orderBy: { uploadedAt: 'desc' } } } }),
     prisma.announcement.findMany({ orderBy: { publishedAt: 'desc' } }),
   ]);
 
@@ -55,6 +55,7 @@ router.get('/content', requireAuth, async (req, res) => {
     khutbahs: khutbahs.map(k => ({
       ...k,
       date: k.date.toISOString().slice(0, 10),
+      recordings: k.recordings.map(serializeRecording),
       resources: k.resources.map(serializeResource),
     })),
     announcements: announcements.map(a => ({
@@ -89,10 +90,10 @@ router.delete('/chapters/:id', requireAuth, requireAdmin, async (req, res) => {
 
 // ---- Lessons ----
 router.post('/lessons', requireAuth, requireAdmin, async (req, res) => {
-  const { chapterId, title, description } = req.body;
+  const { chapterId, title, description, objectives } = req.body;
   if (!chapterId || !title) return res.status(400).json({ error: 'بيانات ناقصة' });
   const lesson = await prisma.lesson.create({
-    data: { chapterId, title, description, objectives: JSON.stringify([]) },
+    data: { chapterId, title, description, objectives: JSON.stringify(objectives || []) },
   });
   res.status(201).json(lesson);
 });
