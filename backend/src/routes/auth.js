@@ -57,7 +57,7 @@ function generateOAuthState(res) {
   const state = crypto.randomBytes(32).toString('hex');
   const opts = cookieOptions();
   delete opts.maxAge;
-  res.cookie(OAUTH_STATE_COOKIE, state, { ...opts, maxAge: OAUTH_STATE_MAX_AGE });
+  res.cookie(OAUTH_STATE_COOKIE, state, { ...opts, sameSite: 'lax', maxAge: OAUTH_STATE_MAX_AGE });
   return state;
 }
 
