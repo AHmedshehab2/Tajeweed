@@ -63,8 +63,5 @@ POST   /api/progress/activity          (logs a listen event, keeps last 5)
 POST   /api/upload                     (admin, multipart — attaches a recording/resource to a lesson/quarter/khutbah)
 ```
 
-## Notes / next steps
 
-- SQLite is set in `schema.prisma` for zero-setup local dev. Switch `provider` to `"postgresql"` and point `DATABASE_URL` at a real Postgres instance before deploying.
-- Move `JWT_SECRET` to a real secret manager in production; don't commit `.env`.
-- File uploads currently sit on local disk (`backend/uploads/`) — swap `multer.diskStorage` for an S3/R2 adapter when you deploy, since local disk won't persist on most hosting platforms.
+
