@@ -1,8 +1,18 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const prisma = new PrismaClient();
 
+function randomPassword() {
+  return crypto.randomBytes(12).toString('base64url');
+}
+
 async function main() {
+  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_PROD_SEED) {
+    console.error('Refusing to run seed against production without ALLOW_PROD_SEED=true');
+    process.exit(1);
+  }
+
   await prisma.activityEntry.deleteMany();
   await prisma.lessonProgress.deleteMany();
   await prisma.quarterProgress.deleteMany();
@@ -16,19 +26,30 @@ async function main() {
   await prisma.chapter.deleteMany();
   await prisma.user.deleteMany();
 
-  // Demo accounts (same as the old quickLogin() helper)
-  const studentPass = await bcrypt.hash('student', 10);
-  const adminPass = await bcrypt.hash('admin', 10);
-  await prisma.user.upsert({
-    where: { email: 'ahmed@example.com' },
-    update: {},
-    create: { name: 'أحمد شهاب', email: 'ahmed@example.com', passwordHash: studentPass, role: 'STUDENT' },
+  const studentPassword = process.env.SEED_STUDENT_PASSWORD || randomPassword();
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || randomPassword();
+  const studentPass = await bcrypt.hash(studentPassword, 10);
+  const adminPass = await bcrypt.hash(adminPassword, 10);
+  await prisma.user.create({
+    data: { name: 'طالب', email: 'student@example.com', passwordHash: studentPass, role: 'STUDENT' },
   });
-  await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
-    update: {},
-    create: { name: 'المدير', email: 'admin@example.com', passwordHash: adminPass, role: 'ADMIN' },
+  await prisma.user.create({
+    data: { name: 'المدير', email: 'admin@example.com', passwordHash: adminPass, role: 'ADMIN' },
   });
+
+  console.log('');
+  console.log('========================================');
+  console.log('  Seed accounts created:');
+  console.log('');
+  console.log('  Student:  student@example.com');
+  console.log('  Password: ' + studentPassword);
+  console.log('');
+  console.log('  Admin:    admin@example.com');
+  console.log('  Password: ' + adminPassword);
+  console.log('========================================');
+  console.log('');
+  console.log('Save these passwords — they will not be shown again.');
+  console.log('');
 
   const chapters = [
     { name: 'باب النون الساكنة والتنوين', description: 'قواعد النون الساكنة والتنوين وتطبيقاتها.', order: 1, lessons: [

@@ -28,10 +28,8 @@ This app has a **Node.js API** (`backend/`) and a **static frontend** (`frontend
 
 5. Open **http://localhost:4000**
 
-   | Account | Email | Password |
-   |---------|-------|----------|
-   | Student | ahmed@example.com | student |
-   | Admin | admin@example.com | admin |
+   Credentials are printed to the console when you run `db:seed`.
+   Default emails: `student@example.com` and `admin@example.com`.
 
 Data and uploads are stored in Docker volumes and survive restarts.
 
@@ -79,10 +77,8 @@ The database is **auto-seeded** on first run.
 
 Go to `http://YOUR_VPS_IP`
 
-| Account | Email | Password |
-|---------|-------|----------|
-| Student | ahmed@example.com | student |
-| Admin | admin@example.com | admin |
+Credentials are printed to the console on first seed.
+Default emails: `student@example.com` and `admin@example.com`.
 
 ### 6. Add a domain (optional, for HTTPS)
 
@@ -200,6 +196,5 @@ Copy `backend/.env.example` to `backend/.env` for local development.
 
 - [ ] Set a strong `JWT_SECRET` (never use the example value).
 - [ ] Set `CLIENT_ORIGIN` to your real domain instead of `*`.
-- [ ] Enable HTTPS (Caddy, Nginx, or your host’s TLS).
-- [ ] Change default demo passwords after seeding.
+- [ ] Enable HTTPS (Caddy, Nginx, or your host's TLS).
 - [ ] Do not commit `.env` or upload folders with private data.

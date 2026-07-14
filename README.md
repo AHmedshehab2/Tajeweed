@@ -11,9 +11,9 @@ npm run prisma:seed           # loads the same chapters/lessons/hizbs/khutbahs a
 npm run dev                   # starts on http://localhost:4000
 ```
 
-Demo accounts (created by the seed script, same as the old quickLogin()):
-- Student: `ahmed@example.com` / `student`
-- Admin:   `admin@example.com` / `admin`
+Demo accounts (created by the seed script):
+- Run `npm run db:seed` — credentials are printed to the console on first seed.
+- You can also set `SEED_STUDENT_PASSWORD` and `SEED_ADMIN_PASSWORD` env vars before seeding.
 
 ## Run the frontend
 

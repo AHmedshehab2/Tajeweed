@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
+const rateLimit = require('express-rate-limit');
 const prisma = require('../prisma');
 const {
   isSupabaseConfigured,
@@ -11,35 +13,48 @@ const {
   requireAuth,
   resolvePrismaUserFromSupabase,
 } = require('../middleware/auth');
+const { isGoogleConfigured, isFacebookConfigured } = require('../lib/passport');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME = 100;
 const MIN_PASSWORD = 6;
 const MAX_PASSWORD = 128;
+const COOKIE_NAME = 'token';
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:4000';
 
-// Simple in-memory rate limiter: max attempts per IP per window
-const rateLimitMap = new Map();
-function rateLimit(key, maxAttempts, windowMs) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry || now - entry.start > windowMs) {
-    rateLimitMap.set(key, { start: now, count: 1 });
-    return true;
-  }
-  entry.count++;
-  return entry.count <= maxAttempts;
+// Rate limiters — default memory store is fine for single-instance SQLite deployment.
+// For multi-instance deployments, swap to a shared store (e.g. Redis).
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات كثيرة، حاول بعد 15 دقيقة' },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات كثيرة، حاول بعد 15 دقيقة' },
+});
+
+function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'strict' : 'lax',
+    path: '/',
+    maxAge: COOKIE_MAX_AGE,
+  };
 }
-// Clean up old entries every 10 minutes
-setInterval(() => {
-  const cutoff = Date.now() - 600_000;
-  for (const [key, entry] of rateLimitMap) {
-    if (entry.start < cutoff) rateLimitMap.delete(key);
-  }
-}, 600_000);
 
 function sign(user) {
   return jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+    { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, tokenVersion: user.tokenVersion },
     process.env.JWT_SECRET,
     { expiresIn: '30d' },
   );
@@ -55,15 +70,14 @@ function publicUser(user) {
   };
 }
 
-// Public config for Supabase client on the frontend
+// Public config for Supabase client and OAuth providers on the frontend
 router.get('/config', (_req, res) => {
-  if (!isSupabaseConfigured()) {
-    return res.json({ enabled: false });
-  }
   res.json({
-    enabled: true,
-    url: process.env.SUPABASE_URL,
-    publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+    supabase: isSupabaseConfigured()
+      ? { enabled: true, url: process.env.SUPABASE_URL, publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY }
+      : { enabled: false },
+    google: { enabled: isGoogleConfigured() },
+    facebook: { enabled: isFacebookConfigured() },
   });
 });
 
@@ -83,19 +97,15 @@ router.post('/supabase', async (req, res) => {
     if (!auth) return res.status(401).json({ error: 'جلسة غير صالحة' });
     const user = await resolvePrismaUserFromSupabase(auth);
     if (!user) return res.status(401).json({ error: 'جلسة غير صالحة' });
-    res.json({ token, user: publicUser(user), provider: 'supabase' });
+    res.cookie(COOKIE_NAME, token, cookieOptions()).json({ user: publicUser(user), provider: 'supabase' });
   } catch (_) {
     res.status(401).json({ error: 'جلسة غير صالحة' });
   }
 });
 
-router.post('/register', async (req, res) => {
-  const ip = req.ip;
-  if (!rateLimit(`register:${ip}`, 5, 15 * 60 * 1000)) {
-    return res.status(429).json({ error: 'محاولات كثيرة، حاول بعد 15 دقيقة' });
-  }
-
-  const { name, email, password, role } = req.body;
+router.post('/register', registerLimiter, async (req, res) => {
+  // Never trust client-supplied role — self-registration always creates STUDENT
+  const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'الاسم والبريد وكلمة المرور مطلوبة' });
@@ -116,17 +126,12 @@ router.post('/register', async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { name: name.trim(), email: normalizedEmail, passwordHash, role: role === 'ADMIN' ? 'ADMIN' : 'STUDENT' },
+    data: { name: name.trim(), email: normalizedEmail, passwordHash, role: 'STUDENT' },
   });
-  res.status(201).json({ token: sign(user), user: publicUser(user) });
+  res.status(201).cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
 
-router.post('/login', async (req, res) => {
-  const ip = req.ip;
-  if (!rateLimit(`login:${ip}`, 10, 15 * 60 * 1000)) {
-    return res.status(429).json({ error: 'محاولات كثيرة، حاول بعد 15 دقيقة' });
-  }
-
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'البريد وكلمة المرور مطلوبة' });
@@ -137,9 +142,75 @@ router.post('/login', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   const ok = await bcrypt.compare(String(password), user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
-  res.json({ token: sign(user), user: publicUser(user) });
+  res.cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
 
-router.get('/me', requireAuth, (req, res) => res.json({ user: req.user }));
+router.get('/me', (req, res) => {
+  const token = req.cookies?.token;
+  if (!token) return res.json({ user: null });
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.id && payload.tokenVersion !== undefined) {
+      return prisma.user.findUnique({ where: { id: payload.id }, select: { tokenVersion: true } })
+        .then(u => {
+          if (!u || u.tokenVersion !== payload.tokenVersion) return res.json({ user: null });
+          res.json({ user: payload });
+        })
+        .catch(() => res.json({ user: null }));
+    }
+    res.json({ user: payload });
+  } catch (_) {
+    res.json({ user: null });
+  }
+});
+
+router.post('/logout', (_req, res) => {
+  res.setHeader('Clear-Site-Data', '"cookies"');
+  res.clearCookie(COOKIE_NAME, { path: '/' }).json({ ok: true });
+});
+
+// ---- Google OAuth ----
+router.get('/google', (req, res, next) => {
+  if (!isGoogleConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=provider`);
+  passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' })(req, res, next);
+});
+
+router.get('/google/callback',
+  (req, res, next) => {
+    if (!isGoogleConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+    passport.authenticate('google', { failureRedirect: `${CLIENT_ORIGIN}/?auth_error=1`, session: false })(req, res, next);
+  },
+  (req, res) => {
+    try {
+      if (!req.user) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+      res.cookie(COOKIE_NAME, sign(req.user), cookieOptions());
+      res.redirect(CLIENT_ORIGIN);
+    } catch (_) {
+      res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+    }
+  },
+);
+
+// ---- Facebook OAuth ----
+router.get('/facebook', (req, res, next) => {
+  if (!isFacebookConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=provider`);
+  passport.authenticate('facebook', { scope: ['email'] })(req, res, next);
+});
+
+router.get('/facebook/callback',
+  (req, res, next) => {
+    if (!isFacebookConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+    passport.authenticate('facebook', { failureRedirect: `${CLIENT_ORIGIN}/?auth_error=1`, session: false })(req, res, next);
+  },
+  (req, res) => {
+    try {
+      if (!req.user) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+      res.cookie(COOKIE_NAME, sign(req.user), cookieOptions());
+      res.redirect(CLIENT_ORIGIN);
+    } catch (_) {
+      res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+    }
+  },
+);
 
 module.exports = router;

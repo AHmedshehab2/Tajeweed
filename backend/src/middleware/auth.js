@@ -45,14 +45,21 @@ async function resolvePrismaUserFromSupabase(auth) {
 }
 
 async function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = req.cookies?.token || null;
   if (!token) return res.status(401).json({ error: 'مطلوب تسجيل الدخول' });
 
   // Local app JWT (email/password login and demo accounts)
   if (process.env.JWT_SECRET) {
     try {
-      req.user = jwt.verify(token, process.env.JWT_SECRET);
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      // Verify tokenVersion hasn't been revoked
+      if (payload.id && payload.tokenVersion !== undefined) {
+        const user = await prisma.user.findUnique({ where: { id: payload.id }, select: { tokenVersion: true } });
+        if (!user || user.tokenVersion !== payload.tokenVersion) {
+          return res.status(401).json({ error: 'الجلسة انتهت، سجّل الدخول مجدداً' });
+        }
+      }
+      req.user = payload;
       return next();
     } catch (_) {
       /* try Supabase next */

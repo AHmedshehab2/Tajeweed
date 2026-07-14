@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const prisma = require('../prisma');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const asyncHandler = require('../lib/asyncHandler');
 
 const recSelect = { id: true, title: true, duration: true, uploadedAt: true, version: true, audioUrl: true };
 const resSelect = { id: true, title: true, kind: true, uploadedAt: true, fileUrl: true };
@@ -19,7 +20,7 @@ function parseObjectives(value) {
 }
 
 // GET /api/content -> full tree shaped like the old defaultContent()/data object
-router.get('/content', requireAuth, async (req, res) => {
+router.get('/content', requireAuth, asyncHandler(async (req, res) => {
   const [chapters, hizbs, khutbahs, announcements] = await Promise.all([
     prisma.chapter.findMany({
       orderBy: { order: 'asc' },
@@ -64,41 +65,41 @@ router.get('/content', requireAuth, async (req, res) => {
       expiresAt: a.expiresAt ? a.expiresAt.toISOString().slice(0, 10) : '',
     })),
   });
-});
+}));
 
 // ---- Chapters ----
-router.post('/chapters', requireAuth, requireAdmin, async (req, res) => {
+router.post('/chapters', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const { name, order, description } = req.body;
   if (!name || !Number.isFinite(Number(order))) return res.status(400).json({ error: 'بيانات ناقصة' });
   const chapter = await prisma.chapter.create({ data: { name, order: Number(order), description } });
   res.status(201).json(chapter);
-});
+}));
 
-router.patch('/chapters/:id', requireAuth, requireAdmin, async (req, res) => {
+router.patch('/chapters/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const { name, order, description } = req.body;
   const chapter = await prisma.chapter.update({
     where: { id: req.params.id },
     data: { name, order: order !== undefined ? Number(order) : undefined, description },
   });
   res.json(chapter);
-});
+}));
 
-router.delete('/chapters/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/chapters/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.chapter.delete({ where: { id: req.params.id } });
   res.status(204).end();
-});
+}));
 
 // ---- Lessons ----
-router.post('/lessons', requireAuth, requireAdmin, async (req, res) => {
+router.post('/lessons', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const { chapterId, title, description, objectives } = req.body;
   if (!chapterId || !title) return res.status(400).json({ error: 'بيانات ناقصة' });
   const lesson = await prisma.lesson.create({
     data: { chapterId, title, description, objectives: JSON.stringify(objectives || []) },
   });
   res.status(201).json(lesson);
-});
+}));
 
-router.patch('/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
+router.patch('/lessons/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const { chapterId, title, description, objectives } = req.body;
   const lesson = await prisma.lesson.update({
     where: { id: req.params.id },
@@ -110,11 +111,14 @@ router.patch('/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
     },
   });
   res.json(lesson);
-});
+}));
 
-router.delete('/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
+router.delete('/lessons/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   await prisma.lesson.delete({ where: { id: req.params.id } });
   res.status(204).end();
-});
+}));
 
 module.exports = router;
+module.exports.parseObjectives = parseObjectives;
+module.exports.serializeRecording = serializeRecording;
+module.exports.serializeResource = serializeResource;

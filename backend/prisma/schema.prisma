@@ -15,9 +15,13 @@ model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   role         String   @default("STUDENT")
   avatar       String?
+  tokenVersion Int      @default(0)
+  provider     String?  // 'email' | 'google' | 'facebook'
+  googleId     String?  @unique
+  facebookId   String?  @unique
   createdAt    DateTime @default(now())
 
   lessonProgress  LessonProgress[]
