@@ -8,16 +8,21 @@ const dbPath = path.join(backendDir, "data", "prod.db");
 process.chdir(backendDir);
 
 console.log("Running migrations...");
-execSync("npx prisma migrate deploy", { stdio: "inherit", cwd: backendDir });
+try {
+  execSync("npx prisma migrate deploy", { stdio: "inherit", cwd: backendDir });
+} catch (err) {
+  console.error("Migration failed:", err.message);
+  process.exit(1);
+}
 
 const needsSeed = (() => {
+  if (!fs.existsSync(dbPath)) return true;
   try {
-    if (!fs.existsSync(dbPath)) return true;
     const out = execSync(
-      'echo "SELECT COUNT(*) FROM User;" | npx prisma db execute --stdin',
-      { encoding: "utf-8", cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] }
+      'sqlite3 "' + dbPath + '" "SELECT COUNT(*) FROM User;"',
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], cwd: backendDir }
     );
-    return out.includes("0");
+    return out.trim() === "0";
   } catch {
     return true;
   }
@@ -25,10 +30,20 @@ const needsSeed = (() => {
 
 if (needsSeed) {
   console.log("Empty database detected — seeding demo data...");
-  execSync("node prisma/seed.js", { stdio: "inherit", cwd: backendDir });
+  try {
+    execSync("node prisma/seed.js", { stdio: "inherit", cwd: backendDir, env: { ...process.env, ALLOW_PROD_SEED: "true" } });
+  } catch (err) {
+    console.error("Seed failed:", err.message);
+    process.exit(1);
+  }
 } else {
   console.log("Database already has data — skipping seed.");
 }
 
 console.log("Starting server...");
-require(path.join(backendDir, "src", "server"));
+try {
+  require(path.join(backendDir, "src", "server"));
+} catch (err) {
+  console.error("Server failed to start:", err);
+  process.exit(1);
+}
