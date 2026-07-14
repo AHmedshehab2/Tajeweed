@@ -93,6 +93,8 @@ router.delete('/chapters/:id', requireAuth, requireAdmin, asyncHandler(async (re
 router.post('/lessons', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
   const { chapterId, title, description, objectives } = req.body;
   if (!chapterId || !title) return res.status(400).json({ error: 'بيانات ناقصة' });
+  const chapterExists = await prisma.chapter.findUnique({ where: { id: chapterId }, select: { id: true } });
+  if (!chapterExists) return res.status(404).json({ error: 'الباب غير موجود' });
   const lesson = await prisma.lesson.create({
     data: { chapterId, title, description, objectives: JSON.stringify(objectives || []) },
   });

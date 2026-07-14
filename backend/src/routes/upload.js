@@ -38,6 +38,27 @@ function tryDeleteFile(fileUrl) {
   fs.unlink(filePath, () => {});
 }
 
+async function validateTargetId(req, res, next) {
+  const { area, targetId } = req.body;
+  if (!area || !targetId) return next();
+
+  try {
+    if (area === 'curriculum') {
+      const lesson = await prisma.lesson.findUnique({ where: { id: targetId }, select: { id: true } });
+      if (!lesson) return res.status(404).json({ error: 'الدرس غير موجود' });
+    } else if (area === 'quran') {
+      const quarter = await prisma.quarter.findUnique({ where: { id: targetId }, select: { id: true } });
+      if (!quarter) return res.status(404).json({ error: 'الربع غير موجود' });
+    } else if (area === 'khutbah') {
+      const khutbah = await prisma.khutbah.findUnique({ where: { id: targetId }, select: { id: true } });
+      if (!khutbah) return res.status(404).json({ error: 'الخطبة غير موجودة' });
+    }
+  } catch (_) {
+    return res.status(400).json({ error: 'قسم غير معروف' });
+  }
+  next();
+}
+
 // Post-multer middleware: validate mimetype and file size against declared type
 function validateUpload(req, res, next) {
   const type = req.body.type;
@@ -72,7 +93,7 @@ function validateUpload(req, res, next) {
 // POST /api/upload  (multipart/form-data)
 // fields: area=curriculum|quran|khutbah, targetId, title, type, file (required), board (optional image)
 const uploadFields = upload.fields([{ name: 'file', maxCount: 1 }, { name: 'board', maxCount: 1 }]);
-router.post('/', requireAuth, requireAdmin, uploadFields, validateUpload, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireAdmin, uploadFields, validateUpload, validateTargetId, asyncHandler(async (req, res) => {
   const { area, targetId, title, type } = req.body;
   const file = req.files && req.files['file'] && req.files['file'][0];
   if (!file || !area || !targetId || !title) return res.status(400).json({ error: 'بيانات ناقصة' });

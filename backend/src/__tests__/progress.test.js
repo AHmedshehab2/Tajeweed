@@ -17,7 +17,7 @@ describe('Progress routes', () => {
     lessonId = contentRes.body.chapters[0].lessons[0].id;
   });
 
-  describe('POST /api/progress/lessons/:id', () => {
+  describe('POST /api/progress/lessons/:id (blind cycle)', () => {
     it('cycles: not-started -> in-progress', async () => {
       const res = await request(app)
         .post(`/api/progress/lessons/${lessonId}`)
@@ -43,6 +43,53 @@ describe('Progress routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('not-started');
+    });
+  });
+
+  describe('POST /api/progress/lessons/:id (guarded transitions)', () => {
+    beforeAll(async () => {
+      await request(app).post(`/api/progress/lessons/${lessonId}`).set('Cookie', cookie);
+    });
+
+    it('transitions to in-progress with targetState from not-started', async () => {
+      const res = await request(app)
+        .post(`/api/progress/lessons/${lessonId}`)
+        .set('Cookie', cookie)
+        .send({ state: 'in-progress' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('in-progress');
+    });
+
+    it('transitions to completed with targetState from in-progress', async () => {
+      const res = await request(app)
+        .post(`/api/progress/lessons/${lessonId}`)
+        .set('Cookie', cookie)
+        .send({ state: 'completed' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('completed');
+    });
+
+    it('does not transition to completed from not-started', async () => {
+      await request(app).post(`/api/progress/lessons/${lessonId}`).set('Cookie', cookie);
+      const res = await request(app)
+        .post(`/api/progress/lessons/${lessonId}`)
+        .set('Cookie', cookie)
+        .send({ state: 'completed' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('not-started');
+    });
+  });
+
+  describe('POST /api/progress/lessons/:id (invalid ID)', () => {
+    it('returns 404 for non-existent lesson', async () => {
+      const res = await request(app)
+        .post('/api/progress/lessons/nonexistent-id')
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(404);
     });
   });
 

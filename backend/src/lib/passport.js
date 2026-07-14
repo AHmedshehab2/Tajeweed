@@ -45,7 +45,7 @@ async function resolveOAuthUser(provider, profile) {
   const newUser = await prisma.user.create({
     data: {
       name: displayName,
-      email: email || `${provider}_${providerId}@oauth.placeholder`,
+      email: email || `${provider}_${providerId}_${Date.now()}@oauth.placeholder`,
       passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
       role: email && email.toLowerCase() === 'tajeweed@gmail.com' ? 'ADMIN' : 'STUDENT',
       avatar,

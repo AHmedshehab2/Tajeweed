@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const rateLimit = require('express-rate-limit');
@@ -40,6 +41,34 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'محاولات كثيرة، حاول بعد 15 دقيقة' },
 });
+
+const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات كثيرة، حاول بعد 15 دقيقة' },
+});
+
+const OAUTH_STATE_COOKIE = 'oauth_state';
+const OAUTH_STATE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
+
+function generateOAuthState(res) {
+  const state = crypto.randomBytes(32).toString('hex');
+  const opts = cookieOptions();
+  delete opts.maxAge;
+  res.cookie(OAUTH_STATE_COOKIE, state, { ...opts, maxAge: OAUTH_STATE_MAX_AGE });
+  return state;
+}
+
+function verifyOAuthState(req, res) {
+  const provided = req.query?.state;
+  const stored = req.cookies?.[OAUTH_STATE_COOKIE];
+  const opts = cookieOptions();
+  delete opts.maxAge;
+  res.clearCookie(OAUTH_STATE_COOKIE, { ...opts, path: '/' });
+  return provided && stored && provided === stored;
+}
 
 function cookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -120,15 +149,18 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (existing) return res.status(409).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
-
   const userRole = normalizedEmail === 'tajeweed@gmail.com' ? 'ADMIN' : 'STUDENT';
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({
-    data: { name: name.trim(), email: normalizedEmail, passwordHash, role: userRole },
-  });
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: { name: name.trim(), email: normalizedEmail, passwordHash, role: userRole },
+    });
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
+    throw err;
+  }
   res.status(201).cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
 
@@ -167,18 +199,22 @@ router.get('/me', (req, res) => {
 
 router.post('/logout', (_req, res) => {
   res.setHeader('Clear-Site-Data', '"cookies"');
-  res.clearCookie(COOKIE_NAME, { path: '/' }).json({ ok: true });
+  const opts = cookieOptions();
+  delete opts.maxAge;
+  res.clearCookie(COOKIE_NAME, { ...opts, path: '/' }).json({ ok: true });
 });
 
 // ---- Google OAuth ----
-router.get('/google', (req, res, next) => {
+router.get('/google', oauthLimiter, (req, res, next) => {
   if (!isGoogleConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=provider`);
-  passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' })(req, res, next);
+  const state = generateOAuthState(res);
+  passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account', state })(req, res, next);
 });
 
 router.get('/google/callback',
   (req, res, next) => {
     if (!isGoogleConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+    if (!verifyOAuthState(req, res)) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
     passport.authenticate('google', { failureRedirect: `${CLIENT_ORIGIN}/?auth_error=1`, session: false })(req, res, next);
   },
   (req, res) => {
@@ -193,14 +229,16 @@ router.get('/google/callback',
 );
 
 // ---- Facebook OAuth ----
-router.get('/facebook', (req, res, next) => {
+router.get('/facebook', oauthLimiter, (req, res, next) => {
   if (!isFacebookConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=provider`);
-  passport.authenticate('facebook', { scope: ['email'] })(req, res, next);
+  const state = generateOAuthState(res);
+  passport.authenticate('facebook', { scope: ['email'], state })(req, res, next);
 });
 
 router.get('/facebook/callback',
   (req, res, next) => {
     if (!isFacebookConfigured()) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
+    if (!verifyOAuthState(req, res)) return res.redirect(`${CLIENT_ORIGIN}/?auth_error=1`);
     passport.authenticate('facebook', { failureRedirect: `${CLIENT_ORIGIN}/?auth_error=1`, session: false })(req, res, next);
   },
   (req, res) => {

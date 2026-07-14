@@ -70,14 +70,14 @@ function startLessonIfNeeded(lessonId) {
   if (status !== "not-started") return;
   progressCache.lessons[lessonId] = "in-progress";
   window._render();
-  apiFetch(`/progress/lessons/${lessonId}`, { method: "POST" }).catch(() => {});
+  apiFetch(`/progress/lessons/${lessonId}`, { method: "POST", body: { state: "in-progress" } }).catch(() => {});
 }
 
 function completeLessonIfNeeded(lessonId) {
   if (!lessonId) return;
   const status = lessonStatus(lessonId);
   if (status !== "in-progress") return;
-  apiFetch(`/progress/lessons/${lessonId}`, { method: "POST" })
+  apiFetch(`/progress/lessons/${lessonId}`, { method: "POST", body: { state: "completed" } })
     .then(({ status: newStatus }) => {
       progressCache.lessons[lessonId] = newStatus;
       window._render();

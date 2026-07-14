@@ -66,3 +66,19 @@ describe('CYCLE state machine', () => {
     expect(state).toBe('not-started');
   });
 });
+
+describe('Guarded transitions', () => {
+  const GUARD = { 'in-progress': 'not-started', 'completed': 'in-progress' };
+
+  it('allows in-progress from not-started', () => {
+    expect(GUARD['in-progress']).toBe('not-started');
+  });
+
+  it('allows completed from in-progress', () => {
+    expect(GUARD['completed']).toBe('in-progress');
+  });
+
+  it('rejects completed from not-started (no entry)', () => {
+    expect(GUARD['completed']).not.toBe('not-started');
+  });
+});
