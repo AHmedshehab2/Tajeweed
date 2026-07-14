@@ -13,6 +13,6 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_ORIGIN
-        value: "https://tajweed-lms.onrender.com"
+        value: "https://tajeweed-v2-0.onrender.com"
       - key: DATABASE_URL
         value: file:./data/prod.db

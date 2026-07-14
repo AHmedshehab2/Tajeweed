@@ -20,7 +20,7 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=4000
 ENV DATABASE_URL="file:./data/prod.db"
-ENV CLIENT_ORIGIN="https://tajweed-lms.onrender.com"
+ENV CLIENT_ORIGIN="https://tajeweed-v2-0.onrender.com"
 
 RUN mkdir -p data uploads && npx prisma generate
 

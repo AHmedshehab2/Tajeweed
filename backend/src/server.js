@@ -25,7 +25,18 @@ if (process.env.NODE_ENV === 'production' && !clientOrigin) {
 }
 app.set('trust proxy', 1);
 const corsOrigins = clientOrigin ? clientOrigin.split(',').map(s => s.trim()) : '*';
-app.use(cors({ origin: (origin, cb) => { if (!origin || corsOrigins === '*' || corsOrigins.includes(origin)) cb(null, true); else cb(new Error('Not allowed by CORS')); }, credentials: true }));
+app.use((req, res, next) => {
+  if (corsOrigins === '*') return next();
+  const origin = req.headers.origin;
+  if (!origin) return next();
+  if (corsOrigins.includes(origin)) return next();
+  try {
+    const requestHost = (req.headers.host || '').replace(/:\d+$/, '');
+    if (new URL(origin).hostname === requestHost) return next();
+  } catch (_) {}
+  return res.status(403).json({ error: 'Not allowed by CORS' });
+});
+app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(passport.initialize());
