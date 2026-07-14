@@ -14,7 +14,7 @@ const needsSeed = (() => {
   try {
     if (!fs.existsSync(dbPath)) return true;
     const out = execSync(
-      'npx prisma db execute --stdin <<< "SELECT COUNT(*) FROM User;"',
+      'echo "SELECT COUNT(*) FROM User;" | npx prisma db execute --stdin',
       { encoding: "utf-8", cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] }
     );
     return out.includes("0");
