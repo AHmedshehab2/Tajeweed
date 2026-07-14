@@ -1,4 +1,4 @@
-import { TODAY, mediaUrl } from "./utils.js";
+import { TODAY, mediaUrl, formatTime, esc } from "./utils.js";
 import { progressCache, allLessons, data, findLessonForRecording, nextLesson, lessonStatus, findLesson } from "./state.js";
 import { apiFetch } from "./api.js";
 import { play as apPlay, pause as apPause, seekPercent as apSeekPercent, setSpeed as apSetSpeed, getState as apState, onUpdate as apOnUpdate, onEnded as apOnEnded } from "./audio-player.js";
@@ -11,11 +11,7 @@ export function parseDuration(str) {
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   return 0;
 }
-export function formatTime(seconds) {
-  const s = Math.max(0, Math.floor(seconds || 0));
-  const m = Math.floor(s / 60);
-  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
+
 
 export function resetPlayButtons(except) {
   document.querySelectorAll(".rich-audio .play").forEach((btn) => {
@@ -122,12 +118,10 @@ function showCompletionCountdown(completedLessonId) {
 }
 
 function buildCountdownHTML(count, nextLessonObj) {
-  return `<div class="countdown-inner"><div class="countdown-check">✓ تم إكمال الدرس</div><div class="countdown-next-title">الدرس التالي: ${esc_html(nextLessonObj.title)}</div><div class="countdown-timer">يبدأ خلال <span class="countdown-number">${count}</span></div><button class="countdown-cancel" onclick="cancelCountdown()">إلغاء</button></div>`;
+  return `<div class="countdown-inner"><div class="countdown-check">✓ تم إكمال الدرس</div><div class="countdown-next-title">الدرس التالي: ${esc(nextLessonObj.title)}</div><div class="countdown-timer">يبدأ خلال <span class="countdown-number">${count}</span></div><button class="countdown-cancel" onclick="cancelCountdown()">إلغاء</button></div>`;
 }
 
-function esc_html(s) {
-  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+
 
 function clearCountdown() {
   if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
@@ -153,11 +147,7 @@ function openLessonAutoPlay(lessonId) {
 }
 
 export function playRecording(button, id) {
-  const recording = allLessons()
-    .flatMap((item) => item.recordings)
-    .concat(data.hizbs.flatMap((h) => h.quarters.flatMap((q) => q.recordings)))
-    .find((item) => item.id === id);
-  const item = recording || data.khutbahs.find((k) => k.id === id);
+  const item = findRecordingById(id);
   if (!item?.audioUrl) return;
 
   const parentLesson = findLessonForRecording(id);

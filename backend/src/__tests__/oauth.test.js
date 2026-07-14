@@ -2,6 +2,20 @@ const request = require('supertest');
 const app = require('../server');
 
 describe('OAuth routes', () => {
+  const savedGoogle = {};
+
+  beforeAll(() => {
+    savedGoogle.id = process.env.GOOGLE_CLIENT_ID;
+    savedGoogle.secret = process.env.GOOGLE_CLIENT_SECRET;
+  });
+
+  afterAll(() => {
+    if (savedGoogle.id !== undefined) process.env.GOOGLE_CLIENT_ID = savedGoogle.id;
+    else delete process.env.GOOGLE_CLIENT_ID;
+    if (savedGoogle.secret !== undefined) process.env.GOOGLE_CLIENT_SECRET = savedGoogle.secret;
+    else delete process.env.GOOGLE_CLIENT_SECRET;
+  });
+
   describe('GET /api/auth/config', () => {
     it('returns provider status object', async () => {
       const res = await request(app).get('/api/auth/config');
@@ -16,6 +30,8 @@ describe('OAuth routes', () => {
     });
 
     it('reports Google as not configured when env vars missing', async () => {
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_SECRET;
       const res = await request(app).get('/api/auth/config');
       expect(res.body.google.enabled).toBe(false);
     });
@@ -27,6 +43,11 @@ describe('OAuth routes', () => {
   });
 
   describe('GET /api/auth/google (not configured)', () => {
+    beforeAll(() => {
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_SECRET;
+    });
+
     it('redirects to frontend with auth_error=provider', async () => {
       const res = await request(app).get('/api/auth/google');
       expect(res.status).toBe(302);
@@ -35,6 +56,11 @@ describe('OAuth routes', () => {
   });
 
   describe('GET /api/auth/google/callback (not configured)', () => {
+    beforeAll(() => {
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_SECRET;
+    });
+
     it('redirects to frontend with auth_error=1', async () => {
       const res = await request(app).get('/api/auth/google/callback');
       expect(res.status).toBe(302);

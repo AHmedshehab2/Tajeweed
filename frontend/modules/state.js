@@ -1,4 +1,4 @@
-import { STORAGE, TODAY, esc, fmt, mediaUrl, isAdmin, read, write, empty } from "./utils.js";
+import { STORAGE, TODAY, esc, fmt, mediaUrl, isAdmin, formatTime, read, write, empty } from "./utils.js";
 import { getState as getAudioState } from "./audio-player.js";
 
 export let data = { chapters: [], hizbs: [], khutbahs: [], announcements: [] };
@@ -88,15 +88,10 @@ export const audioPlayer = (recording, label) => {
   const speedLabels = ["0.75×", "1×", "1.25×", "1.5×"];
   const speedLabel = active ? speedLabels[Math.max(0, [0.75, 1, 1.25, 1.5].indexOf(gs.playbackRate))] : "1×";
   const playIcon = active && gs.isPlaying ? "❚❚" : "▶";
-  const elapsed = active ? formatTimeSimple(gs.currentTime) : "00:00";
+  const elapsed = active ? formatTime(gs.currentTime) : "00:00";
   const seekVal = active && gs.duration > 0 ? Math.round((gs.currentTime / gs.duration) * 100) : 0;
   return `<div class="audio rich-audio" data-recording-id="${esc(recording.id)}"><button class="play" aria-label="تشغيل ${esc(recording.title)}" onclick="playRecording(this,'${esc(recording.id)}')">${playIcon}</button><div class="audio-title"><b>${esc(recording.title)}</b><span>${esc(label)} · رفع ${fmt(recording.uploadedAt)} · ${esc(recording.duration || "")}${recording.version ? ` · الإصدار ${recording.version}` : ""}</span><div class="seek-row"><span>${elapsed}</span><input type="range" min="0" max="100" value="${seekVal}" aria-label="موقع التسجيل" oninput="seekRecording(this)"><span>${esc(recording.duration || "00:00")}</span></div></div><button class="speed" onclick="cycleSpeed(this)" aria-label="تغيير سرعة التشغيل">${speedLabel}</button>${recording.audioUrl ? `<a class="btn-download" href="${esc(mediaUrl(recording.audioUrl))}" download="${esc(recording.title)}" aria-label="تحميل التسجيل">↓</a>` : ""}${isAdmin(state.session) ? `<button class="btn-delete-sm" onclick="deleteRecording('${esc(recording.id)}')" aria-label="حذف التسجيل">✕</button>` : ""}</div>`;
 };
-function formatTimeSimple(seconds) {
-  const s = Math.max(0, Math.floor(seconds || 0));
-  const m = Math.floor(s / 60);
-  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
 export const resourceLink = (resource, meta = "") => {
   const inner = `▤ ${esc(resource.title)}<span>${esc(resource.kind)}${meta ? ` · ${meta}` : ""}</span>`;
   const deleteBtn = isAdmin(state.session) ? `<button class="btn-delete-sm resource-delete" onclick="event.preventDefault();event.stopPropagation();deleteResource('${esc(resource.id)}')" aria-label="حذف المورد">✕</button>` : "";
@@ -136,6 +131,27 @@ export function activityHeatmap() {
   });
   const max = Math.max(...counts, 1);
   return `<div class="heatmap">${days.map((day, i) => `<div class="heatmap-row"><span class="heatmap-label">${day}</span><div class="heatmap-bar-track"><div class="heatmap-bar" style="width:${Math.round((counts[i] / max) * 100)}%"></div></div><span class="heatmap-count">${counts[i]}</span></div>`).join("")}</div>`;
+}
+export function uploadTargets(area) {
+  if (area === "curriculum")
+    return allLessons()
+      .map(
+        (item) =>
+          `<option value="${esc(item.id)}">${esc(item.chapter.name)} — ${esc(item.title)}</option>`,
+      )
+      .join("");
+  if (area === "quran")
+    return data.hizbs
+      .flatMap((h) =>
+        h.quarters.map(
+          (q) =>
+            `<option value="${esc(q.id)}">${esc(h.title)} — ${esc(q.name)}</option>`,
+        ),
+      )
+      .join("");
+  return data.khutbahs
+    .map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`)
+    .join("");
 }
 export function chapterOptions(selected = "") {
   return orderedChapters()

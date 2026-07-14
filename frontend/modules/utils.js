@@ -43,6 +43,11 @@ export const mediaUrl = (url) => {
   if (/^https?:\/\//i.test(url)) return url;
   return `${API_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
 };
+export const formatTime = (seconds) => {
+  const s = Math.max(0, Math.floor(seconds || 0));
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+};
 export const isAdmin = (session) =>
   session?.role === "ADMIN" || session?.role === "admin";
 

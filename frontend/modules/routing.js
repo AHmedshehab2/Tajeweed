@@ -1,5 +1,5 @@
 import { $, empty, esc, STORAGE, write, read, toast, debounce } from "./utils.js";
-import { data, state, progressCache, orderedChapters, allLessons, findLesson, findQuarter, lessonRows } from "./state.js";
+import { data, state, progressCache, orderedChapters, allLessons, findLesson, findQuarter, lessonRows, uploadTargets } from "./state.js";
 import { apiFetch } from "./api.js";
 
 export function pushHash(hash) {
@@ -189,24 +189,4 @@ export function refreshUploadTargets() {
   if (boardEl) boardEl.style.display = area.value === "curriculum" ? "" : "none";
 }
 
-function uploadTargets(area) {
-  if (area === "curriculum")
-    return allLessons()
-      .map(
-        (item) =>
-          `<option value="${esc(item.id)}">${esc(item.chapter.name)} — ${esc(item.title)}</option>`,
-      )
-      .join("");
-  if (area === "quran")
-    return data.hizbs
-      .flatMap((h) =>
-        h.quarters.map(
-          (q) =>
-            `<option value="${esc(q.id)}">${esc(h.title)} — ${esc(q.name)}</option>`,
-        ),
-      )
-      .join("");
-  return data.khutbahs
-    .map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`)
-    .join("");
-}
+

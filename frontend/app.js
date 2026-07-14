@@ -1,9 +1,8 @@
 /* Client-side LMS — thin entry point. All logic lives in modules/. */
-import { applyTheme, toggleTheme, showConfirm, openImageOverlay, currentTheme, toast, showLoading, hideLoading } from "./modules/utils.js";
-import { state, progressCache } from "./modules/state.js";
-import { apiFetch, loadAll, signIn, signUp, logout, supabaseConfig, setSupabaseConfig, setSupabaseClient } from "./modules/api.js";
+import { applyTheme, toggleTheme, showConfirm, openImageOverlay, toast, showLoading, hideLoading } from "./modules/utils.js";
+import { state } from "./modules/state.js";
+import { apiFetch, loadAll, signIn, signUp, logout, setSupabaseConfig, setSupabaseClient } from "./modules/api.js";
 import { playRecording, seekRecording, cycleSpeed, miniPlayPause, miniSeek, miniCycleSpeed, miniPrevLesson, miniNextLesson, miniClose, miniReopen, miniExpand, miniCollapse, cancelCountdown } from "./modules/audio.js";
-import * as AudioPlayer from "./modules/audio-player.js";
 import { go, openLesson, openQuarter, openKhutbah, selectChapter, filterCurriculum, filterQuran, filterKhutbahs, filterGlobal, advanceLesson, toggleQuarter, refreshUploadTargets, hashToState } from "./modules/routing.js";
 import { render } from "./modules/pages.js";
 import { adminTab, newChapter, editChapter, cancelEditors, saveChapter, deleteChapter, newLesson, editLesson, saveLesson, uploadResource, addAnnouncement, deleteAnnouncement, deleteKhutbah, addKhutbah, addHizb, deleteHizb, addQuarter, deleteQuarter, deleteRecording, deleteResource } from "./modules/admin.js";
@@ -94,7 +93,7 @@ async function init() {
       ? 'مزوّد تسجيل الدخول غير مُعد بعد'
       : 'فشل تسجيل الدخول عبر التواصل الاجتماعي';
     toast(msg, 'error');
-    window.history.replaceState({}, '', window.location.pathname);
+    window.history.replaceState({}, '', window.location.pathname + window.location.hash);
   }
 
   const cachedUser = localStorage.getItem("tajweed-user");
@@ -112,8 +111,10 @@ async function init() {
       localStorage.removeItem("tajweed-user");
     }
   } catch (err) {
-    state.session = null;
-    localStorage.removeItem("tajweed-user");
+    if (err.message === "غير مصرح") {
+      state.session = null;
+      localStorage.removeItem("tajweed-user");
+    }
   }
   hideLoading();
 

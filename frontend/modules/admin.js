@@ -1,5 +1,5 @@
 import { esc, fmt, isAdmin, empty, adminTable, showConfirm, toast } from "./utils.js";
-import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent } from "./state.js";
+import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets } from "./state.js";
 import { apiFetch, loadAll } from "./api.js";
 import { getState as getAudioState, stop as audioStop } from "./audio-player.js";
 
@@ -74,27 +74,7 @@ function lessonForm(lesson) {
 function uploadForm() {
   return `<h2>رفع مورد جديد</h2><p class="sub">يرتبط كل ملف مباشرة بالدرس أو الربع أو الخطبة المختارة.</p><form class="upload-form" onsubmit="uploadResource(event)"><div class="form-grid"><div class="field"><label for="upload-area">قسم المحتوى</label><select id="upload-area" onchange="refreshUploadTargets()"><option value="curriculum">المنهج</option><option value="quran">القرآن</option><option value="khutbah">الخطب</option></select></div><div class="field"><label for="upload-target">المحتوى المرتبط</label><select id="upload-target">${uploadTargets("curriculum")}</select></div><div class="field"><label for="upload-title">عنوان المورد</label><input id="upload-title" required placeholder="مثال: تسجيل شرح الإظهار"></div><div class="field"><label for="upload-type">نوع المورد</label><select id="upload-type"><option value="recording">تسجيل صوتي</option><option value="pdf">ملف PDF أو مذكرة</option><option value="image">صورة سبورة / صورة</option><option value="attachment">ملف إضافي</option></select></div></div><div class="field upload-file"><label for="upload-file">اختر الملف</label><input id="upload-file" type="file" required accept="audio/*,.pdf,image/*,.doc,.docx,.ppt,.pptx"><small>يُخزَّن الملف على الخادم ويُعرض للطلاب بعد الرفع.</small></div><div class="field upload-file upload-board" style="display:none"><label for="upload-board">صورة السبورة (اختياري)</label><input id="upload-board" type="file" accept="image/*"><small>تُستخدم كصورة بديلة للدرس إذا لم تتوفر صورة مرفقة مسبقًا.</small></div><button class="primary" type="submit">رفع وإرفاق المورد</button></form>`;
 }
-function uploadTargets(area) {
-  if (area === "curriculum")
-    return allLessons()
-      .map(
-        (item) =>
-          `<option value="${esc(item.id)}">${esc(item.chapter.name)} — ${esc(item.title)}</option>`,
-      )
-      .join("");
-  if (area === "quran")
-    return data.hizbs
-      .flatMap((h) =>
-        h.quarters.map(
-          (q) =>
-            `<option value="${esc(q.id)}">${esc(h.title)} — ${esc(q.name)}</option>`,
-        ),
-      )
-      .join("");
-  return data.khutbahs
-    .map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`)
-    .join("");
-}
+
 function adminContent2() {
   if (state.adminTab === "announcements") return announcementsAdmin();
   return adminContent();
@@ -129,6 +109,7 @@ export function cancelEditors() {
 }
 export async function saveChapter(event) {
   event.preventDefault();
+  if (!isAdmin(state.session)) return;
   const id = document.querySelector("#chapter-id").value,
     name = document.querySelector("#chapter-name").value.trim(),
     order = Number(document.querySelector("#chapter-order").value),
@@ -153,12 +134,13 @@ export async function saveChapter(event) {
   }
 }
 export async function deleteChapter(id) {
+  if (!isAdmin(state.session)) return;
   const chapter = data.chapters.find((item) => item.id === id);
   if (!chapter) return;
   const message = chapter.lessons.length
     ? `يحتوي هذا الباب على ${chapter.lessons.length} درس. هل تريد حذف الباب وكل دروسه؟`
     : "هل تريد حذف هذا الباب؟";
-  if (!window.confirm(message)) return;
+  if (!await showConfirm("حذف الباب", message)) return;
   try {
     await apiFetch(`/chapters/${id}`, { method: "DELETE" });
     await loadAll();
@@ -178,6 +160,7 @@ export function editLesson(id) {
 }
 export async function saveLesson(event) {
   event.preventDefault();
+  if (!isAdmin(state.session)) return;
   const id = document.querySelector("#lesson-id").value,
     targetId = document.querySelector("#lesson-chapter").value,
     title = document.querySelector("#lesson-title").value.trim(),

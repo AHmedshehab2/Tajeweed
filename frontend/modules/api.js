@@ -101,13 +101,12 @@ export async function signUp(event) {
   event.preventDefault();
   const name = document.querySelector("#reg-name").value.trim(),
     email = document.querySelector("#reg-email").value.trim(),
-    password = document.querySelector("#reg-password").value,
-    role = document.querySelector("#reg-role")?.value || "STUDENT";
+    password = document.querySelector("#reg-password").value;
   showLoading();
   try {
     const { user } = await apiFetch("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password, role }),
+      body: JSON.stringify({ name, email, password }),
     });
     write(STORAGE.user, user);
     state.session = user;
