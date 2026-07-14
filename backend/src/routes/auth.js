@@ -123,8 +123,7 @@ router.post('/register', registerLimiter, async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) return res.status(409).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
 
-  const allowedRoles = ['STUDENT', 'ADMIN'];
-  const userRole = allowedRoles.includes(role) ? role : 'STUDENT';
+  const userRole = normalizedEmail === 'tajeweed@gmail.com' ? 'ADMIN' : 'STUDENT';
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({

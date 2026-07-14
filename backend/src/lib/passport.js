@@ -47,7 +47,7 @@ async function resolveOAuthUser(provider, profile) {
       name: displayName,
       email: email || `${provider}_${providerId}@oauth.placeholder`,
       passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
-      role: 'STUDENT',
+      role: email && email.toLowerCase() === 'tajeweed@gmail.com' ? 'ADMIN' : 'STUDENT',
       avatar,
       provider,
       [idField]: providerId,

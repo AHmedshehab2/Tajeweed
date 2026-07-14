@@ -3,13 +3,13 @@ const app = require('../server');
 
 describe('Auth routes', () => {
   describe('POST /api/auth/register', () => {
-    it('creates account with client-supplied role when whitelisted', async () => {
+    it('creates STUDENT by default, ADMIN only for tajeweed@gmail.com', async () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({ name: 'Test User', email: 'test-register@example.com', password: 'password123', role: 'ADMIN' });
 
       expect(res.status).toBe(201);
-      expect(res.body.user.role).toBe('ADMIN');
+      expect(res.body.user.role).toBe('STUDENT');
       expect(res.body.user.email).toBe('test-register@example.com');
       expect(res.headers['set-cookie']).toBeDefined();
     });
