@@ -24,7 +24,8 @@ if (process.env.NODE_ENV === 'production' && !clientOrigin) {
   process.exit(1);
 }
 app.set('trust proxy', 1);
-app.use(cors({ origin: clientOrigin || '*', credentials: true }));
+const corsOrigins = clientOrigin ? clientOrigin.split(',').map(s => s.trim()) : '*';
+app.use(cors({ origin: (origin, cb) => { if (!origin || corsOrigins === '*' || corsOrigins.includes(origin)) cb(null, true); else cb(new Error('Not allowed by CORS')); }, credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
 app.use(passport.initialize());

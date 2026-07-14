@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../prisma');
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:4000';
+const CLIENT_ORIGIN = (process.env.CLIENT_ORIGIN || 'http://localhost:4000').split(',')[0].trim();
 
 function isGoogleConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);

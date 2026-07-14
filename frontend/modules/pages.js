@@ -1,19 +1,21 @@
 import { TODAY, HOME_PHOTO, API_BASE, esc, fmt, mediaUrl, isAdmin, progressBar, empty, crumbs, adminTable, currentTheme } from "./utils.js";
 import { data, state, progressCache, allLessons, orderedChapters, findLesson, findQuarter, resolveLastLesson, resolveLastQuarter, lessonStatus, completedQuarters, chapterPercent, curriculumPercent, totalQuarters, quranPercent, audioPlayer, resourceLink, lessonRows, chapterOptions, getRecentUploads, activityHeatmap } from "./state.js";
 import { admin } from "./admin.js";
+import { syncAudioUI, startAudioUIListener, stopAudioUIListener, startAudioEndListener, isMiniHidden, isMiniExpanded } from "./audio.js";
+import { getState as getAudioState } from "./audio-player.js";
 
 export function render() {
-  window._activeAudio?.pause();
-  window._activeAudio = null;
-  window._activeRecordingId = null;
   document.documentElement.lang = "ar";
   document.documentElement.dir = "rtl";
   document.title = "مدرسة القرآن";
   document.querySelector("#app").innerHTML = state.session
-    ? `${nav()}<main>${({ home, curriculum, lesson, quran, quarter, khutbahs, khutbah, profile, admin, search }[state.page] || home)()}</main>${mobileNav()}`
+    ? `${nav()}<main>${({ home, curriculum, lesson, quran, quarter, khutbahs, khutbah, profile, admin, search }[state.page] || home)()}</main>${mobileNav()}${miniPlayer()}`
     : state.authView === "register"
       ? register()
       : login();
+  syncAudioUI();
+  startAudioUIListener();
+  startAudioEndListener();
 }
 function nav() {
   return `<header class="topbar"><div class="shell"><button class="brand" onclick="go('home')"><span class="brand-mark">م</span>مدرسة القرآن</button><nav class="nav" aria-label="التنقل الرئيسي">${[
@@ -45,6 +47,21 @@ function mobileNav() {
     )
     .join("")}</nav>`;
 }
+function miniPlayer() {
+  const gs = getAudioState();
+  if (!gs.currentRecordingId) return "";
+  const label = gs.isPlaying ? "❚❚" : "▶";
+  const dur = gs.duration > 0 ? formatTimeMini(gs.duration) : "";
+  const hidden = isMiniHidden();
+  const expanded = isMiniExpanded();
+  const expandIcon = expanded ? "✕" : "⤢";
+  return `<div class="mini-player${expanded ? " expanded" : ""}" id="mini-player" data-hidden="${hidden ? "1" : "0"}" style="${hidden ? "display:none" : ""}"><div class="mp-inner"><button class="mp-close" onclick="miniClose()" aria-label="إغلاق">✕</button><div class="mp-expanded-art" aria-hidden="true"><div class="mp-artwork">🎙</div></div><div class="mp-top"><div class="mp-title" id="mp-title">${esc(gs.recordingTitle)}</div></div><div class="mp-seek-row"><span id="mp-elapsed">${formatTimeMini(gs.currentTime)}</span><input type="range" min="0" max="100" value="${gs.duration > 0 ? Math.round((gs.currentTime / gs.duration) * 100) : 0}" aria-label="موقع التسجيل" oninput="miniSeek(this)"><span id="mp-dur">${dur}</span></div><div class="mp-transport"><button class="mp-ctrl mp-prev" onclick="miniPrevLesson()" aria-label="الدرس السابق">▶▶</button><button class="mp-play" onclick="miniPlayPause()" aria-label="تشغيل/إيقاف">${label}</button><button class="mp-ctrl mp-next" onclick="miniNextLesson()" aria-label="الدرس التالي">◀◀</button></div><div class="mp-utils"><button class="mp-speed" onclick="miniCycleSpeed(this)" aria-label="تغيير السرعة">${gs.playbackRate}×</button><button class="mp-ctrl mp-expand" onclick="miniExpand()" aria-label="توسيع"><span class="mp-expand-icon">${expandIcon}</span></button></div></div></div>${hidden ? `<button class="mini-player-fab" id="mini-player-fab" onclick="miniReopen()" aria-label="إعادة فتح المشغل">▶</button>` : `<button class="mini-player-fab" id="mini-player-fab" style="display:none" onclick="miniReopen()" aria-label="إعادة فتح المشغل">▶</button>`}`;
+}
+function formatTimeMini(seconds) {
+  const s = Math.max(0, Math.floor(seconds || 0));
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
 function socialButtons() {
   const googleUrl = `${API_BASE.replace(/\/api\/?$/, '')}/api/auth/google`;
   const facebookUrl = `${API_BASE.replace(/\/api\/?$/, '')}/api/auth/facebook`;
@@ -54,7 +71,7 @@ function login() {
   return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? "☀" : "☾"}</button><section class="card login-card"><div class="brand"><span class="brand-mark">م</span>مدرسة القرآن</div><h1 class="headline">مرحباً بعودتك</h1><p class="sub">سجل دخولك لمتابعة رحلة تعلّم التجويد.</p><form onsubmit="signIn(event)"><div class="field"><label for="email">البريد الإلكتروني</label><input id="email" required type="email" placeholder="example@email.com"></div><div class="field"><label for="password">كلمة المرور</label><input id="password" required type="password" placeholder="••••••••"></div><button class="primary" type="submit">تسجيل الدخول</button></form>${socialButtons()}<p class="compact">ليس لديك حساب؟ <button class="text-link" onclick="showRegister()">إنشاء حساب جديد</button></p></section></main>`;
 }
 function register() {
-  return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? "☀" : "☾"}</button><section class="card login-card"><div class="brand"><span class="brand-mark">م</span>مدرسة القرآن</div><h1 class="headline">إنشاء حساب جديد</h1><p class="sub">سجّل للانضمام إلى رحلة تعلّم التجويد.</p><form onsubmit="signUp(event)"><div class="field"><label for="reg-name">الاسم</label><input id="reg-name" required type="text" placeholder="الاسم الكامل"></div><div class="field"><label for="reg-email">البريد الإلكتروني</label><input id="reg-email" required type="email" placeholder="example@email.com"></div><div class="field"><label for="reg-password">كلمة المرور</label><input id="reg-password" required type="password" minlength="4" placeholder="4 أحرف على الأقل"></div><button class="primary" type="submit">إنشاء الحساب</button></form>${socialButtons()}<p class="compact">لديك حساب بالفعل؟ <button class="text-link" onclick="showLogin()">تسجيل الدخول</button></p></section></main>`;
+  return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? "☀" : "☾"}</button><section class="card login-card"><div class="brand"><span class="brand-mark">م</span>مدرسة القرآن</div><h1 class="headline">إنشاء حساب جديد</h1><p class="sub">سجّل للانضمام إلى رحلة تعلّم التجويد.</p><form onsubmit="signUp(event)"><div class="field"><label for="reg-name">الاسم</label><input id="reg-name" required type="text" placeholder="الاسم الكامل"></div><div class="field"><label for="reg-email">البريد الإلكتروني</label><input id="reg-email" required type="email" placeholder="example@email.com"></div><div class="field"><label for="reg-password">كلمة المرور</label><input id="reg-password" required type="password" minlength="4" placeholder="4 أحرف على الأقل"></div><div class="field"><label for="reg-role">الصلاحية</label><select id="reg-role"><option value="STUDENT">طالب</option><option value="ADMIN">مدير</option></select></div><button class="primary" type="submit">إنشاء الحساب</button></form>${socialButtons()}<p class="compact">لديك حساب بالفعل؟ <button class="text-link" onclick="showLogin()">تسجيل الدخول</button></p></section></main>`;
 }
 function home() {
   const last = resolveLastLesson();
@@ -69,7 +86,9 @@ function home() {
   const resumeCard = last
     ? `<article class="resume-card"><div class="resume-info"><span class="eyebrow">${esc(last.chapter.name)}</span><h3>${esc(last.title)}</h3><p>آخر درس: ${lessonStatus(last.id) === "completed" ? "اكتمل" : "قيد التعلّم"}</p></div><div class="resume-progress"><span class="resume-percent">${lessonPercent}%</span>${progressBar(lessonPercent)}<button class="open" onclick="openLesson('${esc(last.id)}')">متابعة</button></div></article>`
     : `<article class="resume-card"><div class="resume-info"><span class="eyebrow">ابدأ رحلتك</span><h3>منهج التجويد</h3><p>استكشف الدروس وابدأ من الباب الأول.</p></div><button class="open" onclick="go('curriculum')">عرض المنهج</button></article>`;
-  return `<div class="shell"><section class="hero-section"><img class="hero-photo" src="${esc(HOME_PHOTO)}" alt="صورة الشيخ" loading="lazy"><div class="hero-text"><h1 class="hero-ayah">إِنَّ الَّذِينَ يَتْلُونَ كِتَابَ اللَّهِ وَأَقَامُوا الصَّلَاةَ وَأَنفَقُوا مِمَّا رَزَقْنَاهُمْ سِرًّا وَعَلَانِيَةً يَرْجُونَ تِجَارَةً لَّن تَبُورَ</h1><p class="hero-sub">كل ما تحتاجه لمتابعة دروسك ومراجعة تلاوتك، في مكان واحد.</p><div class="hero-search"><span class="hero-search-icon">🔍</span><input type="text" placeholder="ابحث عن درس، سورة، أو موضوع..." onfocus="go('search')"></div><div class="hero-cta"><button class="primary" onclick="go('curriculum')">ابدأ رحلتك الآن</button><button class="btn-outline" onclick="go('quran')">استكشف القرآن</button></div></div></section><section style="margin-top:28px">${resumeCard}</section><section class="announcement-stack">${announcements.map((item) => `<article class="announcement ${item.priority === "important" ? "important" : ""}"><span class="announce-tag">${item.priority === "important" ? "مهم" : "تذكير"} · ${item.target === "all" ? "لكل الطلاب" : esc(item.target)}</span><strong>${esc(item.title)}:</strong> ${esc(item.body)}</article>`).join("")}</section></div>`;
+  const totalQuartersCount = data.hizbs.reduce((sum, h) => sum + (h.quarters ? h.quarters.length : 0), 0);
+  const completedQuartersCount = completedQuarters().length;
+  return `<div class="shell"><section class="hero-section"><img class="hero-photo" src="${esc(HOME_PHOTO)}" alt="صورة الشيخ" loading="lazy"><div class="hero-text"><h1 class="hero-ayah">إِنَّ الَّذِينَ يَتْلُونَ كِتَابَ اللَّهِ وَأَقَامُوا الصَّلَاةَ وَأَنفَقُوا مِمَّا رَزَقْنَاهُمْ سِرًّا وَعَلَانِيَةً يَرْجُونَ تِجَارَةً لَّن تَبُورَ</h1><p class="hero-sub">كل ما تحتاجه لمتابعة دروسك ومراجعة تلاوتك، في مكان واحد.</p><div class="hero-cta"><button class="primary" onclick="go('curriculum')">ابدأ رحلتك الآن</button><button class="btn-outline" onclick="go('quran')">استكشف القرآن</button></div></div><div class="hero-progress"><article class="hero-stat"><span class="eyebrow">المنهج</span><h3>${completedLessons} / ${totalLessons}</h3><p>درس مكتمل · ${lessonPercent}%</p></article><article class="hero-stat"><span class="eyebrow">القرآن</span><h3>${completedQuartersCount} / ${totalQuartersCount}</h3><p>ربع مكتمل · ${totalQuartersCount ? Math.round((completedQuartersCount / totalQuartersCount) * 100) : 0}%</p></article></div></section><section style="margin-top:28px">${resumeCard}</section><section class="announcement-stack">${announcements.map((item) => `<article class="announcement ${item.priority === "important" ? "important" : ""}"><span class="announce-tag">${item.priority === "important" ? "مهم" : "تذكير"} · ${item.target === "all" ? "لكل الطلاب" : esc(item.target)}</span><strong>${esc(item.title)}:</strong> ${esc(item.body)}</article>`).join("")}</section></div>`;
 }
 function curriculum() {
   const chapters = orderedChapters();

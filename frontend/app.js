@@ -1,14 +1,13 @@
 /* Client-side LMS — thin entry point. All logic lives in modules/. */
 import { applyTheme, toggleTheme, showConfirm, openImageOverlay, currentTheme, toast, showLoading, hideLoading } from "./modules/utils.js";
-import { state, progressCache, activeAudio, activeRecordingId, setActiveAudio, setActiveRecordingId } from "./modules/state.js";
+import { state, progressCache } from "./modules/state.js";
 import { apiFetch, loadAll, signIn, signUp, logout, supabaseConfig, setSupabaseConfig, setSupabaseClient } from "./modules/api.js";
-import { playRecording, seekRecording, cycleSpeed } from "./modules/audio.js";
+import { playRecording, seekRecording, cycleSpeed, miniPlayPause, miniSeek, miniCycleSpeed, miniPrevLesson, miniNextLesson, miniClose, miniReopen, miniExpand, miniCollapse, cancelCountdown } from "./modules/audio.js";
+import * as AudioPlayer from "./modules/audio-player.js";
 import { go, openLesson, openQuarter, openKhutbah, selectChapter, filterCurriculum, filterQuran, filterKhutbahs, filterGlobal, advanceLesson, toggleQuarter, refreshUploadTargets, hashToState } from "./modules/routing.js";
 import { render } from "./modules/pages.js";
 import { adminTab, newChapter, editChapter, cancelEditors, saveChapter, deleteChapter, newLesson, editLesson, saveLesson, uploadResource, addAnnouncement, deleteAnnouncement, deleteKhutbah, addKhutbah, addHizb, deleteHizb, addQuarter, deleteQuarter, deleteRecording, deleteResource } from "./modules/admin.js";
 
-window._activeAudio = null;
-window._activeRecordingId = null;
 window._render = render;
 
 window.go = go;
@@ -31,6 +30,16 @@ window.logout = logout;
 window.playRecording = playRecording;
 window.seekRecording = seekRecording;
 window.cycleSpeed = cycleSpeed;
+window.miniPlayPause = miniPlayPause;
+window.miniSeek = miniSeek;
+window.miniCycleSpeed = miniCycleSpeed;
+window.miniPrevLesson = miniPrevLesson;
+window.miniNextLesson = miniNextLesson;
+window.miniClose = miniClose;
+window.miniReopen = miniReopen;
+window.miniExpand = miniExpand;
+window.miniCollapse = miniCollapse;
+window.cancelCountdown = cancelCountdown;
 window.adminTab = adminTab;
 window.newChapter = newChapter;
 window.editChapter = editChapter;

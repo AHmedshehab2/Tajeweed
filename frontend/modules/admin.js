@@ -1,6 +1,7 @@
 import { esc, fmt, isAdmin, empty, adminTable, showConfirm, toast } from "./utils.js";
 import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent } from "./state.js";
 import { apiFetch, loadAll } from "./api.js";
+import { getState as getAudioState, stop as audioStop } from "./audio-player.js";
 
 export function admin() {
   if (!isAdmin(state.session))
@@ -351,6 +352,7 @@ export async function deleteRecording(id) {
   if (!await showConfirm("حذف التسجيل", "هل تريد حذف هذا التسجيل؟ لا يمكن التراجع عن هذا الإجراء.")) return;
   try {
     await apiFetch(`/upload/recordings/${id}`, { method: "DELETE" });
+    if (getAudioState().currentRecordingId === id) audioStop();
     await loadAll();
     if (state.page === "lesson") window.openLesson(state.lessonId);
     else if (state.page === "khutbah") window.openKhutbah(state.khutbahId);

@@ -21,7 +21,7 @@ const MIN_PASSWORD = 6;
 const MAX_PASSWORD = 128;
 const COOKIE_NAME = 'token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:4000';
+const CLIENT_ORIGIN = (process.env.CLIENT_ORIGIN || 'http://localhost:4000').split(',')[0].trim();
 
 // Rate limiters — default memory store is fine for single-instance SQLite deployment.
 // For multi-instance deployments, swap to a shared store (e.g. Redis).
@@ -104,8 +104,7 @@ router.post('/supabase', async (req, res) => {
 });
 
 router.post('/register', registerLimiter, async (req, res) => {
-  // Never trust client-supplied role — self-registration always creates STUDENT
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'الاسم والبريد وكلمة المرور مطلوبة' });
@@ -124,9 +123,12 @@ router.post('/register', registerLimiter, async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) return res.status(409).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
 
+  const allowedRoles = ['STUDENT', 'ADMIN'];
+  const userRole = allowedRoles.includes(role) ? role : 'STUDENT';
+
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
-    data: { name: name.trim(), email: normalizedEmail, passwordHash, role: 'STUDENT' },
+    data: { name: name.trim(), email: normalizedEmail, passwordHash, role: userRole },
   });
   res.status(201).cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });

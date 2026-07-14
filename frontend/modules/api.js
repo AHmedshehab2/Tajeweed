@@ -1,5 +1,6 @@
 import { API_BASE, STORAGE, read, write, toast, showLoading, hideLoading } from "./utils.js";
 import { data, state, progressCache, setData, setProgressCache, orderedChapters, findLesson, findQuarter, allLessons, defaultQuarter } from "./state.js";
+import { stop as audioStop } from "./audio-player.js";
 
 export let supabaseConfig = { enabled: false };
 export let supabaseClient = null;
@@ -100,12 +101,13 @@ export async function signUp(event) {
   event.preventDefault();
   const name = document.querySelector("#reg-name").value.trim(),
     email = document.querySelector("#reg-email").value.trim(),
-    password = document.querySelector("#reg-password").value;
+    password = document.querySelector("#reg-password").value,
+    role = document.querySelector("#reg-role")?.value || "STUDENT";
   showLoading();
   try {
     const { user } = await apiFetch("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, role }),
     });
     write(STORAGE.user, user);
     state.session = user;
@@ -118,9 +120,7 @@ export async function signUp(event) {
   }
 }
 export function logout() {
-  window._activeAudio?.pause();
-  window._activeAudio = null;
-  window._activeRecordingId = null;
+  audioStop();
   if (supabaseConfig.enabled && supabaseClient) {
     supabaseClient.auth.signOut().catch(() => {});
   }

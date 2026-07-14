@@ -1,4 +1,5 @@
 import { STORAGE, TODAY, esc, fmt, mediaUrl, isAdmin, read, write, empty } from "./utils.js";
+import { getState as getAudioState } from "./audio-player.js";
 
 export let data = { chapters: [], hizbs: [], khutbahs: [], announcements: [] };
 export let state = {
@@ -14,14 +15,10 @@ export let state = {
   chapterEditor: null,
   lessonEditor: null,
 };
-export let activeAudio = null;
-export let activeRecordingId = null;
 export let progressCache = { lessons: {}, quarters: [], activity: [] };
 
 export function setData(v) { data = v; }
 export function setState(v) { Object.assign(state, v); }
-export function setActiveAudio(v) { activeAudio = v; }
-export function setActiveRecordingId(v) { activeRecordingId = v; }
 export function setProgressCache(v) { Object.assign(progressCache, v); }
 
 export const allLessons = () =>
@@ -33,6 +30,18 @@ export const orderedChapters = () =>
     .slice()
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "ar"));
 export const findLesson = (id) => allLessons().find((item) => item.id === id);
+export const findLessonForRecording = (recordingId) =>
+  allLessons().find((lesson) => lesson.recordings.some((r) => r.id === recordingId));
+export const nextLesson = (id) => {
+  const list = allLessons();
+  const i = list.findIndex((l) => l.id === id);
+  return list[i + 1] || null;
+};
+export const prevLesson = (id) => {
+  const list = allLessons();
+  const i = list.findIndex((l) => l.id === id);
+  return i > 0 ? list[i - 1] : null;
+};
 export const findQuarter = (id) =>
   data.hizbs
     .flatMap((hizb) => hizb.quarters.map((quarter) => ({ ...quarter, hizb })))
@@ -73,8 +82,21 @@ export const curriculumPercent = () => {
 export const totalQuarters = () => data.hizbs.reduce((sum, h) => sum + (h.quarters ? h.quarters.length : 0), 0);
 export const quranPercent = () => { const total = totalQuarters(); return total ? Math.round((completedQuarters().length / total) * 100) : 0; };
 
-export const audioPlayer = (recording, label) =>
-  `<div class="audio rich-audio" data-recording-id="${esc(recording.id)}"><button class="play" aria-label="تشغيل ${esc(recording.title)}" onclick="playRecording(this,'${esc(recording.id)}')">▶</button><div class="audio-title"><b>${esc(recording.title)}</b><span>${esc(label)} · رفع ${fmt(recording.uploadedAt)} · ${esc(recording.duration || "")}${recording.version ? ` · الإصدار ${recording.version}` : ""}</span><div class="seek-row"><span>00:00</span><input type="range" min="0" max="100" value="0" aria-label="موقع التسجيل" oninput="seekRecording(this)"><span>${esc(recording.duration || "00:00")}</span></div></div><button class="speed" onclick="cycleSpeed(this)" aria-label="تغيير سرعة التشغيل">1×</button>${isAdmin(state.session) ? `<button class="btn-delete-sm" onclick="deleteRecording('${esc(recording.id)}')" aria-label="حذف التسجيل">✕</button>` : ""}</div>`;
+export const audioPlayer = (recording, label) => {
+  const gs = getAudioState();
+  const active = gs.currentRecordingId === recording.id;
+  const speedLabels = ["0.75×", "1×", "1.25×", "1.5×"];
+  const speedLabel = active ? speedLabels[Math.max(0, [0.75, 1, 1.25, 1.5].indexOf(gs.playbackRate))] : "1×";
+  const playIcon = active && gs.isPlaying ? "❚❚" : "▶";
+  const elapsed = active ? formatTimeSimple(gs.currentTime) : "00:00";
+  const seekVal = active && gs.duration > 0 ? Math.round((gs.currentTime / gs.duration) * 100) : 0;
+  return `<div class="audio rich-audio" data-recording-id="${esc(recording.id)}"><button class="play" aria-label="تشغيل ${esc(recording.title)}" onclick="playRecording(this,'${esc(recording.id)}')">${playIcon}</button><div class="audio-title"><b>${esc(recording.title)}</b><span>${esc(label)} · رفع ${fmt(recording.uploadedAt)} · ${esc(recording.duration || "")}${recording.version ? ` · الإصدار ${recording.version}` : ""}</span><div class="seek-row"><span>${elapsed}</span><input type="range" min="0" max="100" value="${seekVal}" aria-label="موقع التسجيل" oninput="seekRecording(this)"><span>${esc(recording.duration || "00:00")}</span></div></div><button class="speed" onclick="cycleSpeed(this)" aria-label="تغيير سرعة التشغيل">${speedLabel}</button>${recording.audioUrl ? `<a class="btn-download" href="${esc(mediaUrl(recording.audioUrl))}" download="${esc(recording.title)}" aria-label="تحميل التسجيل">↓</a>` : ""}${isAdmin(state.session) ? `<button class="btn-delete-sm" onclick="deleteRecording('${esc(recording.id)}')" aria-label="حذف التسجيل">✕</button>` : ""}</div>`;
+};
+function formatTimeSimple(seconds) {
+  const s = Math.max(0, Math.floor(seconds || 0));
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
 export const resourceLink = (resource, meta = "") => {
   const inner = `▤ ${esc(resource.title)}<span>${esc(resource.kind)}${meta ? ` · ${meta}` : ""}</span>`;
   const deleteBtn = isAdmin(state.session) ? `<button class="btn-delete-sm resource-delete" onclick="event.preventDefault();event.stopPropagation();deleteResource('${esc(resource.id)}')" aria-label="حذف المورد">✕</button>` : "";
