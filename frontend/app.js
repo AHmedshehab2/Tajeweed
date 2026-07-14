@@ -1,5 +1,5 @@
 /* Client-side LMS — thin entry point. All logic lives in modules/. */
-import { applyTheme, toggleTheme, showConfirm, openImageOverlay, toast, showLoading, hideLoading } from "./modules/utils.js";
+import { applyTheme, toggleTheme, showConfirm, showPrompt, openImageOverlay, toast, showLoading, hideLoading } from "./modules/utils.js";
 import { state } from "./modules/state.js";
 import { apiFetch, loadAll, signIn, signUp, logout, setSupabaseConfig, setSupabaseClient } from "./modules/api.js";
 import { playRecording, seekRecording, cycleSpeed, miniPlayPause, miniSeek, miniCycleSpeed, miniPrevLesson, miniNextLesson, miniClose, miniReopen, miniExpand, miniCollapse, cancelCountdown } from "./modules/audio.js";
@@ -119,19 +119,19 @@ async function init() {
   hideLoading();
 
   const incoming = hashToState();
-  if (incoming.page) state.page = incoming.page;
-  if (incoming.lessonId) state.lessonId = incoming.lessonId;
-  if (incoming.quarterId) state.quarterId = incoming.quarterId;
-  if (incoming.khutbahId) state.khutbahId = incoming.khutbahId;
+  state.page = incoming.page || "home";
+  state.lessonId = incoming.lessonId || null;
+  state.quarterId = incoming.quarterId || null;
+  state.khutbahId = incoming.khutbahId || null;
 
   render();
 
   window.addEventListener("popstate", () => {
     const s = hashToState();
-    if (s.page) state.page = s.page;
-    if (s.lessonId) state.lessonId = s.lessonId;
-    if (s.quarterId) state.quarterId = s.quarterId;
-    if (s.khutbahId) state.khutbahId = s.khutbahId;
+    state.page = s.page || "home";
+    state.lessonId = s.lessonId || null;
+    state.quarterId = s.quarterId || null;
+    state.khutbahId = s.khutbahId || null;
     render();
   });
 }

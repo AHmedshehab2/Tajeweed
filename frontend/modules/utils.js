@@ -100,6 +100,21 @@ export function showConfirm(title, message) {
     overlay.addEventListener("click", (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
   });
 }
+export function showPrompt(title, placeholder = "") {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `<div class="confirm-card"><h3>${esc(title)}</h3><div class="field" style="margin-top:14px"><input id="prompt-input" type="text" placeholder="${esc(placeholder)}" autofocus></div><div class="confirm-actions" style="margin-top:18px"><button class="btn-danger" style="background:var(--primary)">تأكيد</button><button class="btn-ghost">إلغاء</button></div></div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector("#prompt-input");
+    input.focus();
+    const submit = () => { const val = input.value.trim(); overlay.remove(); resolve(val || null); };
+    overlay.querySelector(".btn-danger").onclick = submit;
+    overlay.querySelector(".btn-ghost").onclick = () => { overlay.remove(); resolve(null); };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } });
+  });
+}
 export function openImageOverlay(url, title) {
   const overlay = document.createElement("div");
   overlay.className = "confirm-overlay image-overlay";

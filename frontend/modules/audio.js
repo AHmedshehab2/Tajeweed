@@ -35,6 +35,7 @@ export function seekRecording(input) {
   const dur = audioDuration(container);
   const pct = Number(input.value);
   apSeekPercent(pct);
+  input.style.setProperty("--progress", pct + "%");
   const timeEl = input.previousElementSibling;
   if (timeEl) timeEl.textContent = formatTime((pct / 100) * dur);
 }
@@ -205,7 +206,11 @@ export function syncAudioUI() {
     const timeEl = container.querySelector(".seek-row span");
     const speedBtn = container.querySelector(".speed");
     if (playBtn) playBtn.textContent = gs.isPlaying ? "❚❚" : "▶";
-    if (seek && gs.duration > 0) seek.value = String(Math.round((gs.currentTime / gs.duration) * 100));
+    if (seek && gs.duration > 0) {
+      const pct = Math.round((gs.currentTime / gs.duration) * 100);
+      seek.value = String(pct);
+      seek.style.setProperty("--progress", pct + "%");
+    }
     if (timeEl) timeEl.textContent = formatTime(gs.currentTime);
     if (speedBtn) {
       const labels = ["0.75×", "1×", "1.25×", "1.5×"];
@@ -246,6 +251,8 @@ export function miniPlayPause() {
   if (!gs.currentRecordingId) return;
   const recording = findRecordingById(gs.currentRecordingId);
   if (recording) {
+    const parentLesson = findLessonForRecording(gs.currentRecordingId);
+    if (parentLesson) startLessonIfNeeded(parentLesson.id);
     const btn = document.querySelector(`.rich-audio[data-recording-id="${gs.currentRecordingId}"] .play`);
     if (btn) playRecording(btn, gs.currentRecordingId);
     else apPlay(recording);
@@ -314,10 +321,8 @@ export function miniClose() {
 
 export function miniReopen() {
   _miniHidden = false;
-  const mini = document.getElementById("mini-player");
-  const fab = document.getElementById("mini-player-fab");
-  if (mini) { mini.dataset.hidden = "0"; mini.style.display = ""; }
-  if (fab) fab.style.display = "none";
+  _miniNeedsAnimation = true;
+  window._render();
 }
 
 export function miniExpand() {
@@ -356,9 +361,14 @@ let _unsub = null;
 let _endedUnsub = null;
 let _miniHidden = false;
 let _miniExpanded = false;
+let _miniNeedsAnimation = true;
 
 export function isMiniHidden() { return _miniHidden; }
 export function isMiniExpanded() { return _miniExpanded; }
+export function isMiniAnimating() {
+  if (_miniNeedsAnimation) { _miniNeedsAnimation = false; return true; }
+  return false;
+}
 export function startAudioUIListener() {
   if (_unsub) _unsub();
   _unsub = apOnUpdate(() => syncAudioUI());

@@ -1,11 +1,11 @@
-import { esc, fmt, isAdmin, empty, adminTable, showConfirm, toast } from "./utils.js";
-import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets } from "./state.js";
+import { esc, fmt, isAdmin, empty, adminTable, showConfirm, showPrompt, toast } from "./utils.js";
+import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets, getRecentUploads } from "./state.js";
 import { apiFetch, loadAll } from "./api.js";
 import { getState as getAudioState, stop as audioStop } from "./audio-player.js";
 
 export function admin() {
   if (!isAdmin(state.session))
-    return `<div class="shell"><section class="card access-denied"><h1>هذه الصفحة خاصة بالإدارة</h1><p class="sub">سجل الدخول بحساب المدير للوصول إلى إدارة المحتوى.</p><button class="primary" onclick="logout()">تسجيل الدخول كمدير</button></section></div>`;
+    return `<div class="shell"><section class="card access-denied"><h1>هذه الصفحة خاصة بالإدارة</h1><p class="sub">ليس لديك صلاحية الوصول إلى إدارة المحتوى.</p><button class="primary" onclick="go('home')">العودة للرئيسية</button></section></div>`;
   const tabs = [
     ["overview", "نظرة عامة"],
     ["upload", "رفع مورد"],
@@ -20,7 +20,7 @@ function adminContent() {
   if (state.adminTab === "upload") return uploadForm();
   if (state.adminTab === "curriculum") return curriculumAdmin();
   if (state.adminTab === "quran")
-    return `<div class="admin-section"><div class="section-title"><h2>إدارة القرآن</h2><button class="primary" onclick="document.getElementById('hizb-form')?.scrollIntoView()">+ إضافة حزب</button></div><form id="hizb-form" class="editor-form" onsubmit="addHizb(event)"><h3>إضافة حزب جديد</h3><div class="form-grid"><div class="field"><label>رقم الحزب</label><input id="hizb-number" required type="number" min="1" placeholder="مثال: 61"></div><div class="field"><label>الجزء</label><input id="hizb-juz" type="number" min="1" max="30" placeholder="اترك فارغاً للحساب التلقائي"></div></div><div class="field"><label>العنوان</label><input id="hizb-title" required placeholder="مثال: الحزب 61"></div><button class="primary" type="submit">إضافةحزب</button></form><section class="admin-list">${data.hizbs.length ? data.hizbs.map((h) => `<article class="admin-item"><div style="flex:1"><b>${esc(h.title)}</b><span>الجزء ${h.juz} · ${h.quarters ? h.quarters.length : 0} أرباع</span><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${(h.quarters || []).map((q) => `<span class="pill" style="display:inline-flex;align-items:center;gap:4px">${esc(q.name)}<button class="text-link" style="padding:0;font-size:11px" onclick="deleteQuarter('${esc(h.id)}','${esc(q.id)}')">✕</button></span>`).join("")}<button class="text-link" style="font-size:12px" onclick="addQuarter('${esc(h.id)}')">+ ربع</button></div></div><div><button class="text-link" onclick="deleteHizb('${esc(h.id)}')">حذف الحزب</button></div></article>`).join("") : empty("لا توجد أحزاب بعد. أضف حزباً من النموذج أعلاه.")}</section></div>`;
+    return `<div class="admin-section"><div class="section-title"><h2>إدارة القرآن</h2><button class="primary" onclick="document.getElementById('hizb-form')?.scrollIntoView()">+ إضافة حزب</button></div><form id="hizb-form" class="editor-form" onsubmit="addHizb(event)"><h3>إضافة حزب جديد</h3><div class="form-grid"><div class="field"><label>رقم الحزب</label><input id="hizb-number" required type="number" min="1" placeholder="مثال: 61"></div><div class="field"><label>الجزء</label><input id="hizb-juz" type="number" min="1" max="30" placeholder="اترك فارغاً للحساب التلقائي"></div></div><div class="field"><label>العنوان</label><input id="hizb-title" required placeholder="مثال: الحزب 61"></div><button class="primary" type="submit">إضافة حزب</button></form><section class="admin-list">${data.hizbs.length ? data.hizbs.map((h) => `<article class="admin-item"><div style="flex:1"><b>${esc(h.title)}</b><span>الجزء ${h.juz} · ${h.quarters ? h.quarters.length : 0} أرباع</span><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${(h.quarters || []).map((q) => `<span class="pill" style="display:inline-flex;align-items:center;gap:4px">${esc(q.name)}<button class="text-link" style="padding:0;font-size:11px" onclick="deleteQuarter('${esc(h.id)}','${esc(q.id)}')">✕</button></span>`).join("")}<button class="text-link" style="font-size:12px" onclick="addQuarter('${esc(h.id)}')">+ ربع</button></div></div><div><button class="text-link" onclick="deleteHizb('${esc(h.id)}')">حذف الحزب</button></div></article>`).join("") : empty("لا توجد أحزاب بعد. أضف حزباً من النموذج أعلاه.")}</section></div>`;
   if (state.adminTab === "khutbahs")
     return `<div class="admin-section"><div class="section-title"><h2>إدارة الخطب</h2><button class="primary" onclick="document.getElementById('khutbah-form')?.scrollIntoView()">+ إضافة خطبة</button></div><form id="khutbah-form" class="editor-form" onsubmit="addKhutbah(event)"><h3>إضافة خطبة جديدة</h3><div class="form-grid"><div class="field"><label>العنوان</label><input id="khutbah-title" required placeholder="مثال: فضل الصبر"></div><div class="field"><label>التاريخ</label><input id="khutbah-date" required type="date"></div></div><div class="field"><label>الوصف</label><input id="khutbah-description" placeholder="وصف مختصر للخطبة"></div><button class="primary" type="submit">إضافة</button></form><section class="admin-list">${data.khutbahs.length ? data.khutbahs.map((k) => `<article class="admin-item"><div><b>${esc(k.title)}</b><span>${fmt(k.date)}${k.recordings && k.recordings.length ? ` · ${k.recordings.length} تسجيل(ات)` : ""}</span></div><div><button class="text-link" onclick="deleteKhutbah('${esc(k.id)}')">حذف</button></div></article>`).join("") : empty("لا توجد خطب بعد. أضف خطبة جديدة من النموذج أعلاه.")}</section></div>`;
   if (state.adminTab === "announcements")
@@ -32,14 +32,15 @@ function adminContent() {
         a.priority === "important" ? "مهم" : "عادي",
       ]),
     )}`;
-  return `<h2>آخر المحتوى</h2><p class="sub">أضف الملفات من «رفع مورد»، وأدر أبواب المنهج ودروسه من القسم المخصص.</p>${adminTable(
-    ["العنوان", "النوع", "التاريخ"],
-    [
-      ["أحكام الإدغام", "تسجيل درس", "13 يونيو 2026"],
-      ["الحزب 3 · الربع الثاني", "تصحيح قرآن", "15 يونيو 2026"],
-      ["الاستقامة طريق النجاة", "خطبة", "14 يونيو 2026"],
-    ],
-  )}`;
+  const recentUploads = getRecentUploads(8);
+  return `<h2>آخر المحتوى</h2><p class="sub">أضف الملفات من «رفع مورد»، وأدر أبواب المنهج ودروسه من القسم المخصص.</p>${recentUploads.length ? adminTable(
+    ["العنوان", "القسم", "التاريخ"],
+    recentUploads.map((item) => [
+      item.title,
+      item.section,
+      fmt(item.uploadedAt),
+    ]),
+  ) : empty("لا يوجد محتوى بعد.")}`;
 }
 function curriculumAdmin() {
   const chapter = state.chapterEditor
@@ -206,11 +207,6 @@ export async function uploadResource(event) {
   try {
     await apiFetch("/upload", { method: "POST", body: form });
     await loadAll();
-    event.target.reset();
-    if (boardFile) {
-      const boardContainer = document.querySelector(".upload-board");
-      if (boardContainer) boardContainer.style.display = "none";
-    }
     toast("تم رفع المورد وربطه بالمحتوى المختار.", "success");
     window._render();
   } catch (err) {
@@ -306,12 +302,12 @@ export async function deleteHizb(id) {
 }
 export async function addQuarter(hizbId) {
   if (!isAdmin(state.session)) return;
-  const name = prompt("اسم الربع الجديد:");
-  if (!name || !name.trim()) return;
+  const name = await showPrompt("اسم الربع الجديد:", "مثال: الربع الأول");
+  if (!name) return;
   try {
     await apiFetch(`/quran/${hizbId}/quarters`, {
       method: "POST",
-      body: JSON.stringify({ name: name.trim() }),
+      body: JSON.stringify({ name }),
     });
     await loadAll();
     window._render();

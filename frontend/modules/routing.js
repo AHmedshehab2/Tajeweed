@@ -111,10 +111,22 @@ const _filterKhutbahs = (query) => {
   const normalized = String(query || "")
     .trim()
     .toLowerCase();
-  document.querySelectorAll(".khutbah").forEach((card) => {
+  const cards = document.querySelectorAll(".khutbah");
+  cards.forEach((card) => {
     const text = (card.dataset.search || "").toLowerCase();
     card.hidden = Boolean(normalized) && !text.includes(normalized);
   });
+  const grid = document.getElementById("khutbah-grid");
+  if (!grid) return;
+  const existing = grid.querySelector(".no-results");
+  const anyVisible = grid.querySelectorAll(".khutbah:not([hidden])").length > 0;
+  if (normalized && !anyVisible) {
+    if (!existing)
+      grid.insertAdjacentHTML(
+        "beforeend",
+        `<div class="no-results">${empty("لم يتم العثور على نتائج.")}</div>`,
+      );
+  } else if (existing) existing.remove();
 };
 export const filterKhutbahs = debounce(_filterKhutbahs, 250);
 

@@ -73,6 +73,7 @@ export function play(recording) {
   a.load();
   currentRecordingId = recording.id;
   currentRecording = recording;
+  notify();
   a.play().catch(() => {});
 }
 
