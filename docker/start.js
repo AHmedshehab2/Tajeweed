@@ -17,15 +17,8 @@ try {
 
 const needsSeed = (() => {
   if (!fs.existsSync(dbPath)) return true;
-  try {
-    const out = execSync(
-      'sqlite3 "' + dbPath + '" "SELECT COUNT(*) FROM User;"',
-      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], cwd: backendDir }
-    );
-    return out.trim() === "0";
-  } catch {
-    return true;
-  }
+  const stat = fs.statSync(dbPath);
+  return stat.size < 1024;
 })();
 
 if (needsSeed) {
@@ -42,7 +35,10 @@ if (needsSeed) {
 
 console.log("Starting server...");
 try {
-  require(path.join(backendDir, "src", "server"));
+  const app = require(path.join(backendDir, "src", "server"));
+  const PORT = Number(process.env.PORT || 4000);
+  const HOST = process.env.HOST || "0.0.0.0";
+  app.listen(PORT, HOST, () => console.log(`Server running on ${HOST}:${PORT}`));
 } catch (err) {
   console.error("Server failed to start:", err);
   process.exit(1);
