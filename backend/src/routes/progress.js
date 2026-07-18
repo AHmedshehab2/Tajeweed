@@ -11,7 +11,7 @@ router.get('/me', requireAuth, asyncHandler(async (req, res) => {
     prisma.activityEntry.findMany({ where: { userId: req.user.id }, orderBy: { date: 'desc' }, take: 5 }),
   ]);
   res.json({
-    lessons: Object.fromEntries(lessonProgress.map(p => [p.lessonId, p.status.toLowerCase().replace('_', '-')])),
+    lessons: Object.fromEntries(lessonProgress.map(p => [p.lessonId, p.status.toLowerCase().replaceAll('_', '-')])),
     quarters: quarterProgress.map(p => p.quarterId),
     activity: activity.map(a => ({ id: a.refId, title: a.title, kind: a.kind, date: a.date.toISOString().slice(0, 10) })),
   });
@@ -31,7 +31,7 @@ router.post('/lessons/:id', requireAuth, asyncHandler(async (req, res) => {
   if (!lessonExists) return res.status(404).json({ error: 'الدرس غير موجود' });
 
   const existing = await prisma.lessonProgress.findUnique({ where: { userId_lessonId: { userId: req.user.id, lessonId } } });
-  const current = existing ? existing.status.toLowerCase().replace('_', '-') : 'not-started';
+  const current = existing ? existing.status.toLowerCase().replaceAll('_', '-') : 'not-started';
 
   let next;
   if (targetState && (targetState === 'in-progress' || targetState === 'completed')) {
@@ -45,13 +45,13 @@ router.post('/lessons/:id', requireAuth, asyncHandler(async (req, res) => {
     next = CYCLE[current];
   }
 
-  const status = next.toUpperCase().replace('-', '_');
+  const status = next.toUpperCase().replaceAll('-', '_');
   const saved = await prisma.lessonProgress.upsert({
     where: { userId_lessonId: { userId: req.user.id, lessonId } },
     update: { status },
     create: { userId: req.user.id, lessonId, status },
   });
-  res.json({ status: saved.status.toLowerCase().replace('_', '-') });
+  res.json({ status: saved.status.toLowerCase().replaceAll('_', '-') });
 }));
 
 // POST /api/progress/quarters/:id -> toggles completion

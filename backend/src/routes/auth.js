@@ -172,7 +172,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
   const normalizedEmail = String(email).trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (!user) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+  if (!user?.passwordHash) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   const ok = await bcrypt.compare(String(password), user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   res.cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
@@ -184,14 +184,17 @@ router.get('/me', (req, res) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     if (payload.id && payload.tokenVersion !== undefined) {
-      return prisma.user.findUnique({ where: { id: payload.id }, select: { tokenVersion: true, role: true } })
+      return prisma.user.findUnique({
+        where: { id: payload.id },
+        select: { id: true, name: true, email: true, role: true, avatar: true, tokenVersion: true },
+      })
         .then(u => {
           if (!u || u.tokenVersion !== payload.tokenVersion) return res.json({ user: null });
-          res.json({ user: { ...payload, role: u.role } });
+          res.json({ user: publicUser(u) });
         })
         .catch(() => res.json({ user: null }));
     }
-    res.json({ user: payload });
+    res.json({ user: publicUser(payload) });
   } catch (_) {
     res.json({ user: null });
   }

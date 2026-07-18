@@ -206,7 +206,16 @@ export function getRecentUploads(limit = 5) {
     });
   });
   data.khutbahs.forEach((k) => {
-    if (k.date || k.audioUrl)
+    (k.recordings || []).forEach((rec) =>
+      items.push({
+        uploadedAt: rec.uploadedAt || k.date || TODAY,
+        title: rec.title,
+        meta: rec.duration,
+        section: `خطبة`,
+        action: `openKhutbah('${k.id}')`,
+      }),
+    );
+    if ((!k.recordings || !k.recordings.length) && (k.date || k.audioUrl))
       items.push({
         uploadedAt: k.date || TODAY,
         title: k.title,

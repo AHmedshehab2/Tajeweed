@@ -19,14 +19,24 @@ const quranRoutes = require('./routes/quran');
 
 const app = express();
 const clientOrigin = process.env.CLIENT_ORIGIN;
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change-this-to-a-long-random-string') {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('JWT_SECRET must be set to a strong secret in production');
+    process.exit(1);
+  }
+  console.warn('Warning: JWT_SECRET is missing or using the default example value');
+}
 if (process.env.NODE_ENV === 'production' && !clientOrigin) {
   console.error('CLIENT_ORIGIN must be set in production');
   process.exit(1);
 }
 app.set('trust proxy', 1);
-const corsOrigins = clientOrigin ? clientOrigin.split(',').map(s => s.trim()) : '*';
+const corsOrigins = clientOrigin
+  ? clientOrigin.split(',').map(s => s.trim()).filter(Boolean)
+  : ['*'];
+const allowAllOrigins = corsOrigins.includes('*');
 app.use((req, res, next) => {
-  if (corsOrigins === '*') return next();
+  if (allowAllOrigins) return next();
   const origin = req.headers.origin;
   if (!origin) return next();
   if (corsOrigins.includes(origin)) return next();

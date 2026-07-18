@@ -1,5 +1,5 @@
 import { $, empty, esc, STORAGE, write, read, toast, debounce } from "./utils.js";
-import { data, state, progressCache, orderedChapters, allLessons, findLesson, findQuarter, lessonRows, uploadTargets } from "./state.js";
+import { data, state, progressCache, orderedChapters, allLessons, findLesson, findQuarter, lessonRows, uploadTargets, lessonStatus } from "./state.js";
 import { apiFetch } from "./api.js";
 
 export function pushHash(hash) {
@@ -131,9 +131,11 @@ const _filterKhutbahs = (query) => {
 export const filterKhutbahs = debounce(_filterKhutbahs, 250);
 
 const _filterGlobal = (query) => {
+  const resultsEl = $("#global-results");
+  if (!resultsEl) return;
   const term = query.trim().toLowerCase();
   if (!term) {
-    $("#global-results").innerHTML = empty("اكتب كلمة للبحث في جميع المحتوى.");
+    resultsEl.innerHTML = empty("اكتب كلمة للبحث في جميع المحتوى.");
     return;
   }
   const chapters = orderedChapters().filter((chapter) =>
@@ -154,7 +156,7 @@ const _filterGlobal = (query) => {
     khutbahItems = data.khutbahs.filter((item) =>
       `${item.title} ${item.description}`.toLowerCase().includes(term),
     );
-  $("#global-results").innerHTML =
+  resultsEl.innerHTML =
     `<section class="search-groups"><div class="card"><h3>الأبواب</h3>${chapters.length ? chapters.map((chapter) => `<button class="search-result" onclick="selectChapter('${esc(chapter.id)}')">${esc(chapter.name)}<span>${chapter.lessons.length} دروس</span></button>`).join("") : empty("لا توجد أبواب مطابقة.")}</div><div class="card"><h3>الدروس</h3>${lessonRows(lessons)}</div><div class="card"><h3>القرآن</h3>${
       quarters.length
         ? quarters
@@ -169,6 +171,7 @@ const _filterGlobal = (query) => {
 };
 export const filterGlobal = debounce(_filterGlobal, 300);
 export async function advanceLesson(id) {
+  if (lessonStatus(id) === "completed") return;
   try {
     const { status } = await apiFetch(`/progress/lessons/${id}`, {
       method: "POST",

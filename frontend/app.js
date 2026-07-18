@@ -110,10 +110,10 @@ async function init() {
       localStorage.removeItem("tajweed-user");
     }
   } catch (err) {
-    if (err.message === "غير مصرح") {
-      state.session = null;
-      localStorage.removeItem("tajweed-user");
-    }
+    console.error("Failed to restore session:", err);
+    state.session = null;
+    localStorage.removeItem("tajweed-user");
+    toast("تعذر تحميل الجلسة. حاول مرة أخرى.", "error");
   }
   hideLoading();
 

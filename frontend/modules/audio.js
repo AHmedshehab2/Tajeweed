@@ -65,6 +65,11 @@ function onSeekTrackPointerMove(event) {
 
 function onSeekTrackPointerUp(event) {
   const track = event.currentTarget;
+  try {
+    if (track.hasPointerCapture?.(event.pointerId)) {
+      track.releasePointerCapture(event.pointerId);
+    }
+  } catch (_) {}
   track.removeEventListener("pointermove", onSeekTrackPointerMove);
   track.removeEventListener("pointerup", onSeekTrackPointerUp);
   track.removeEventListener("pointercancel", onSeekTrackPointerUp);
@@ -97,26 +102,49 @@ export function audioDuration(container) {
   return parseDuration(label) || 0;
 }
 
+const _pendingStarts = new Map();
+
 function startLessonIfNeeded(lessonId) {
-  if (!lessonId) return;
+  if (!lessonId) return Promise.resolve();
   const status = lessonStatus(lessonId);
-  if (status !== "not-started") return;
+  if (status !== "not-started") return Promise.resolve();
+  if (_pendingStarts.has(lessonId)) return _pendingStarts.get(lessonId);
   progressCache.lessons[lessonId] = "in-progress";
   window._render();
-  apiFetch(`/progress/lessons/${lessonId}`, { method: "POST", body: JSON.stringify({ state: "in-progress" }) }).catch(() => {});
-}
-
-function completeLessonIfNeeded(lessonId) {
-  if (!lessonId) return;
-  const status = lessonStatus(lessonId);
-  if (status !== "in-progress") return;
-  apiFetch(`/progress/lessons/${lessonId}`, { method: "POST", body: JSON.stringify({ state: "completed" }) })
+  const pending = apiFetch(`/progress/lessons/${lessonId}`, {
+    method: "POST",
+    body: JSON.stringify({ state: "in-progress" }),
+  })
     .then(({ status: newStatus }) => {
       progressCache.lessons[lessonId] = newStatus;
-      window._render();
-      showCompletionCountdown(lessonId);
     })
-    .catch(() => {});
+    .catch(() => {
+      if (progressCache.lessons[lessonId] === "in-progress") {
+        delete progressCache.lessons[lessonId];
+        window._render();
+      }
+    })
+    .finally(() => {
+      _pendingStarts.delete(lessonId);
+    });
+  _pendingStarts.set(lessonId, pending);
+  return pending;
+}
+
+async function completeLessonIfNeeded(lessonId) {
+  if (!lessonId) return;
+  await (_pendingStarts.get(lessonId) || Promise.resolve());
+  const status = lessonStatus(lessonId);
+  if (status !== "in-progress") return;
+  try {
+    const { status: newStatus } = await apiFetch(`/progress/lessons/${lessonId}`, {
+      method: "POST",
+      body: JSON.stringify({ state: "completed" }),
+    });
+    progressCache.lessons[lessonId] = newStatus;
+    window._render();
+    if (newStatus === "completed") showCompletionCountdown(lessonId);
+  } catch (_) {}
 }
 
 let _countdownTimer = null;
@@ -378,10 +406,21 @@ export function miniCollapse() {
 
 function findRecordingById(id) {
   const rec = allLessons()
-    .flatMap((item) => item.recordings)
-    .concat(data.hizbs.flatMap((h) => h.quarters.flatMap((q) => q.recordings)))
+    .flatMap((item) => item.recordings || [])
+    .concat(data.hizbs.flatMap((h) => h.quarters.flatMap((q) => q.recordings || [])))
+    .concat(data.khutbahs.flatMap((k) => k.recordings || []))
     .find((item) => item.id === id);
-  return rec || data.khutbahs.find((k) => k.id === id);
+  if (rec) return rec;
+  // Legacy khutbahs may store audioUrl on the document itself
+  const khutbah = data.khutbahs.find((k) => k.id === id && k.audioUrl);
+  if (!khutbah) return null;
+  return {
+    id: khutbah.id,
+    title: khutbah.title,
+    duration: khutbah.duration,
+    uploadedAt: khutbah.date,
+    audioUrl: khutbah.audioUrl,
+  };
 }
 
 let _unsub = null;

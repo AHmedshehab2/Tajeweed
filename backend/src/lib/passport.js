@@ -42,12 +42,14 @@ async function resolveOAuthUser(provider, profile) {
   }
 
   // 3. Create a new user
+  const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
+  const role = email && bootstrapEmail && email.toLowerCase() === bootstrapEmail ? 'ADMIN' : 'STUDENT';
   const newUser = await prisma.user.create({
     data: {
       name: displayName,
       email: email || `${provider}_${providerId}_${Date.now()}@oauth.placeholder`,
       passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
-      role: email && email.toLowerCase() === 'tajeweed@gmail.com' ? 'ADMIN' : 'STUDENT',
+      role,
       avatar,
       provider,
       [idField]: providerId,
