@@ -32,13 +32,15 @@ const ALLOWED_MIMETYPES = {
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "text/plain",
   ],
 };
 
 const SIZE_LIMITS = {
   recording: 250 * 1024 * 1024,
-  pdf: 10 * 1024 * 1024,
+  pdf: 50 * 1024 * 1024,
   image: 10 * 1024 * 1024,
   attachment: 10 * 1024 * 1024,
 };
@@ -69,8 +71,13 @@ function tryDeleteFile(fileUrl, cloudinaryId) {
     destroy(cloudinaryId).catch(() => {});
     return;
   }
-  if (!fileUrl) return;
-  const filePath = path.join(__dirname, "../../", fileUrl.replace(/^\//, ""));
+  if (!fileUrl || typeof fileUrl !== "string") return;
+  if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) return;
+  const relative = fileUrl.replace(/^\//, "");
+  if (!relative.startsWith("uploads/") || relative.includes("..")) return;
+  const filePath = path.resolve(path.join(__dirname, "../../", relative));
+  const uploadsRoot = path.resolve(UPLOADS_DIR);
+  if (!filePath.startsWith(uploadsRoot + path.sep) && filePath !== uploadsRoot) return;
   fs.unlink(filePath, () => {});
 }
 
@@ -222,7 +229,7 @@ router.post(
             data: {
               lessonId: targetId,
               title,
-              duration: "جديد",
+              duration: "00:00",
               version: count + 1,
               audioUrl: fileUrl,
               cloudinaryId: filePublicId,
@@ -262,7 +269,7 @@ router.post(
             data: {
               quarterId: targetId,
               title,
-              duration: "جديد",
+              duration: "00:00",
               version: count + 1,
               audioUrl: fileUrl,
               cloudinaryId: filePublicId,
@@ -291,7 +298,7 @@ router.post(
             data: {
               khutbahId: targetId,
               title,
-              duration: "جديد",
+              duration: "00:00",
               version: count + 1,
               audioUrl: fileUrl,
               cloudinaryId: filePublicId,
