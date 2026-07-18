@@ -21,6 +21,12 @@ function ensureAudio() {
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("loadedmetadata", notify);
     audio.addEventListener("error", notify);
+    audio.addEventListener("durationchange", () => {
+      notify();
+      if (Number.isFinite(audio.duration) && audio.currentTime > audio.duration) {
+        audio.currentTime = audio.duration;
+      }
+    });
   }
   return audio;
 }
@@ -70,6 +76,7 @@ export function play(recording) {
 
   a.pause();
   a.src = url;
+  a.currentTime = 0;
   a.load();
   currentRecordingId = recording.id;
   currentRecording = recording;
@@ -89,7 +96,10 @@ export function seek(seconds) {
 export function seekPercent(percent) {
   const a = ensureAudio();
   const dur = Number.isFinite(a.duration) ? a.duration : 0;
-  if (dur > 0) a.currentTime = (Math.max(0, Math.min(100, percent)) / 100) * dur;
+  if (dur > 0) {
+    const target = (Math.max(0, Math.min(100, percent)) / 100) * dur;
+    a.currentTime = Math.min(target, dur);
+  }
 }
 
 export function setSpeed(rate) {

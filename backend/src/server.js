@@ -40,7 +40,9 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(passport.initialize());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+  setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+}));
 
 app.use('/api/auth', authRoutes);
 app.use('/api', contentRoutes);
