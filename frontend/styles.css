@@ -164,6 +164,11 @@ a { color: var(--primary); text-decoration: none; }
 .brand:hover .brand-mark {
 	box-shadow: 0 4px 20px rgba(22,160,133,.45), 0 0 16px var(--glow);
 }
+.brand-logo {
+	height: 36px;
+	width: auto;
+	border-radius: 8px;
+}
 
 /* ═══ Navigation Pills ═══ */
 .nav {
