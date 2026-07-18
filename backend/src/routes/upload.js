@@ -6,9 +6,14 @@ const prisma = require("../prisma");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const asyncHandler = require("../lib/asyncHandler");
 const { sniffBuffer, matchesDeclaredType } = require("../lib/sniff");
-const { uploadBuffer, destroy } = require("../services/cloudinary.service");
+const { isConfigured: cloudinaryConfigured, uploadBuffer, destroy } = require("../services/cloudinary.service");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 250 * 1024 * 1024 } });
+const UPLOADS_DIR = path.join(__dirname, "../../uploads");
+
+if (!cloudinaryConfigured) {
+  try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (_) {}
+}
 
 const ALLOWED_MIMETYPES = {
   recording: [
@@ -45,14 +50,28 @@ const KIND_LABEL = {
   attachment: "ملف إضافي",
 };
 
-function tryDeleteFile(fileUrl) {
+async function storeFile(buffer, originalname) {
+  if (cloudinaryConfigured) {
+    const base = originalname.replace(/[^\w.\-]/g, "_").replace(/\.[^.]+$/, "");
+    const result = await uploadBuffer(buffer, {
+      folder: "tajweed",
+      public_id: `${Date.now()}-${base}`,
+    });
+    return { url: result.secure_url, cloudinaryId: result.public_id };
+  }
+  const filename = `${Date.now()}-${originalname.replace(/[^\w.\-]/g, "_")}`;
+  fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
+  return { url: `/uploads/${filename}`, cloudinaryId: null };
+}
+
+function tryDeleteFile(fileUrl, cloudinaryId) {
+  if (cloudinaryId) {
+    destroy(cloudinaryId).catch(() => {});
+    return;
+  }
   if (!fileUrl) return;
   const filePath = path.join(__dirname, "../../", fileUrl.replace(/^\//, ""));
   fs.unlink(filePath, () => {});
-}
-
-function tryDeleteCloudinary(cloudinaryId) {
-  if (cloudinaryId) destroy(cloudinaryId).catch(() => {});
 }
 
 function validateUpload(req, res, next) {
@@ -138,19 +157,6 @@ async function validateTargetId(req, res, next) {
   next();
 }
 
-function sanitizeFilename(original) {
-  return original.replace(/[^\w.\-]/g, "_").replace(/\.[^.]+$/, "");
-}
-
-async function uploadToCloudinary(buffer, originalname) {
-  const base = sanitizeFilename(originalname);
-  const result = await uploadBuffer(buffer, {
-    folder: "tajweed",
-    public_id: `${Date.now()}-${base}`,
-  });
-  return { url: result.secure_url, publicId: result.public_id };
-}
-
 const uploadFields = upload.fields([
   { name: "file", maxCount: 1 },
   { name: "board", maxCount: 1 },
@@ -173,25 +179,25 @@ router.post(
 
     let fileResult, boardResult;
     try {
-      fileResult = await uploadToCloudinary(file.buffer, file.originalname);
+      fileResult = await storeFile(file.buffer, file.originalname);
     } catch (_) {
-      return res.status(500).json({ error: "فشل رفع الملف إلى السحابة" });
+      return res.status(500).json({ error: "فشل حفظ الملف" });
     }
 
     const boardFile = req.files && req.files["board"] && req.files["board"][0];
     if (boardFile) {
       try {
-        boardResult = await uploadToCloudinary(boardFile.buffer, boardFile.originalname);
+        boardResult = await storeFile(boardFile.buffer, boardFile.originalname);
       } catch (_) {
-        tryDeleteCloudinary(fileResult.publicId);
-        return res.status(500).json({ error: "فشل رفع صورة السبورة إلى السحابة" });
+        tryDeleteFile(fileResult.url, fileResult.cloudinaryId);
+        return res.status(500).json({ error: "فشل حفظ صورة السبورة" });
       }
     }
 
     const fileUrl = fileResult.url;
-    const filePublicId = fileResult.publicId;
+    const filePublicId = fileResult.cloudinaryId;
     const boardUrl = boardResult ? boardResult.url : null;
-    const boardPublicId = boardResult ? boardResult.publicId : null;
+    const boardPublicId = boardResult ? boardResult.cloudinaryId : null;
 
     try {
       if (area === "curriculum") {
@@ -299,12 +305,12 @@ router.post(
         return res.status(201).json(resource);
       }
 
-      tryDeleteCloudinary(filePublicId);
-      if (boardPublicId) tryDeleteCloudinary(boardPublicId);
+      tryDeleteFile(fileUrl, filePublicId);
+      if (boardUrl) tryDeleteFile(boardUrl, boardPublicId);
       res.status(400).json({ error: "قسم غير معروف" });
     } catch (err) {
-      tryDeleteCloudinary(filePublicId);
-      if (boardPublicId) tryDeleteCloudinary(boardPublicId);
+      tryDeleteFile(fileUrl, filePublicId);
+      if (boardUrl) tryDeleteFile(boardUrl, boardPublicId);
       res.status(400).json({ error: "تعذر ربط الملف بالمحتوى المختار" });
     }
   }),
@@ -320,11 +326,7 @@ router.delete(
         where: { id: req.params.id },
       });
       if (!rec) return res.status(404).json({ error: "التسجيل غير موجود" });
-      if (rec.cloudinaryId) {
-        tryDeleteCloudinary(rec.cloudinaryId);
-      } else {
-        tryDeleteFile(rec.audioUrl);
-      }
+      tryDeleteFile(rec.audioUrl, rec.cloudinaryId);
       await prisma.recording.delete({ where: { id: req.params.id } });
       res.json({ ok: true });
     } catch (err) {
@@ -343,11 +345,7 @@ router.delete(
         where: { id: req.params.id },
       });
       if (!resrc) return res.status(404).json({ error: "المورد غير موجود" });
-      if (resrc.cloudinaryId) {
-        tryDeleteCloudinary(resrc.cloudinaryId);
-      } else {
-        tryDeleteFile(resrc.fileUrl);
-      }
+      tryDeleteFile(resrc.fileUrl, resrc.cloudinaryId);
       await prisma.resource.delete({ where: { id: req.params.id } });
       res.json({ ok: true });
     } catch (err) {
