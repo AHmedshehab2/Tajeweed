@@ -194,6 +194,8 @@ export async function uploadResource(event) {
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = "جاري الرفع...";
+
+  console.log("[upload 1] FormData built, calling apiFetch...");
   try {
     const area = document.querySelector("#upload-area").value,
       targetId = document.querySelector("#upload-target")?.value,
@@ -210,11 +212,17 @@ export async function uploadResource(event) {
     const boardEl = document.querySelector("#upload-board");
     const boardFile = boardEl && boardEl.files[0];
     if (boardFile) form.append("board", boardFile);
-    await apiFetch("/upload", { method: "POST", body: form });
+
+    const res = await apiFetch("/upload", { method: "POST", body: form });
+    console.log("[upload 2] apiFetch resolved OK");
+
     await loadAll();
+    console.log("[upload 3] loadAll done");
+
     toast(area === "general" ? "تم رفع المورد العام بنجاح." : "تم رفع المورد وربطه بالمحتوى المختار.", "success");
     window._render();
   } catch (err) {
+    console.log("[upload ERR]", err.message);
     toast(err.message, "error");
   } finally {
     btn.disabled = false;

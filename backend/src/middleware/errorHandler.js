@@ -1,5 +1,6 @@
 function errorHandler(err, _req, res, _next) {
   console.error(err);
+  if (res.headersSent) return;
 
   if (err.code && err.code.startsWith('P')) {
     const prismaStatus = {

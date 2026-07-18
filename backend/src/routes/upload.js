@@ -181,15 +181,26 @@ const uploadFields = upload.fields([
   { name: "board", maxCount: 1 },
 ]);
 
+router.use((req, _res, next) => {
+  console.log("[upload 1] route hit", req.method, req.path);
+  next();
+});
+
 router.post(
   "/",
   requireAuth,
   requireAdmin,
+  timeoutHandler(120000),
   uploadFields,
+  (req, _res, next) => {
+    console.log("[upload 2] multer done, fields:", Object.keys(req.body || {}), "files:", Object.keys(req.files || {}));
+    next();
+  },
   validateUpload,
   validateTargetId,
-  timeoutHandler(60000),
   asyncHandler(async (req, res) => {
+    res.on("finish", () => console.log("[upload DONE] status:", res.statusCode));
+    console.log("[upload 3] handler start — cloudinaryConfigured:", cloudinaryConfigured);
     const { area, targetId, title, type } = req.body;
     const file = req.files && req.files["file"] && req.files["file"][0];
     if (!file || !area || !title)
@@ -198,9 +209,12 @@ router.post(
       return res.status(400).json({ error: "بيانات ناقصة" });
 
     let fileResult, boardResult;
+    console.log("[upload 4] storeFile start — size:", file.size, "name:", file.originalname);
     try {
       fileResult = await storeFile(file.buffer, file.originalname);
-    } catch (_) {
+      console.log("[upload 5] storeFile done — url:", fileResult.url, "cloudinaryId:", fileResult.cloudinaryId);
+    } catch (e) {
+      console.log("[upload ERR] storeFile failed:", e.message);
       return res.status(500).json({ error: "فشل حفظ الملف" });
     }
 

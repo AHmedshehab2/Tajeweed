@@ -11,18 +11,42 @@ export async function apiFetch(path, options = {}) {
   const headers = Object.assign({}, options.headers);
   if (!(options.body instanceof FormData))
     headers["Content-Type"] = "application/json";
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: "include" });
-  if (res.status === 401) {
-    const publicPaths = ["/auth/me", "/auth/config"];
-    const isPublic = publicPaths.some(p => path.startsWith(p));
-    if (!isPublic) window.logout();
-    throw new Error("غير مصرح");
+
+  const timeoutMs = options.timeout || (options.body instanceof FormData ? 90000 : 20000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = options.signal || controller.signal;
+
+  if (options.signal) {
+    options.signal.addEventListener("abort", () => controller.abort());
   }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "حدث خطأ في الاتصال بالخادم");
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+      signal,
+    });
+    if (res.status === 401) {
+      const publicPaths = ["/auth/me", "/auth/config"];
+      const isPublic = publicPaths.some(p => path.startsWith(p));
+      if (!isPublic) window.logout();
+      throw new Error("غير مصرح");
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "حدث خطأ في الاتصال بالخادم");
+    }
+    return res.status === 204 ? null : res.json();
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("انتهت مهلة الاتصال بالخادم");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.status === 204 ? null : res.json();
 }
 
 export async function loadAll() {
