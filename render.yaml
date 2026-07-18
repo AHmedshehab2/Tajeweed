@@ -16,3 +16,10 @@ services:
         value: "https://tajeweed-v2-0.onrender.com"
       - key: DATABASE_URL
         value: file:./data/prod.db
+      # Cloudinary — set real values in Render Dashboard (Environment)
+      - key: CLOUDINARY_CLOUD_NAME
+        value: ""
+      - key: CLOUDINARY_API_KEY
+        value: ""
+      - key: CLOUDINARY_API_SECRET
+        value: ""

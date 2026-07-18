@@ -53,10 +53,13 @@ const KIND_LABEL = {
 async function storeFile(buffer, originalname) {
   if (cloudinaryConfigured) {
     const base = originalname.replace(/[^\w.\-]/g, "_").replace(/\.[^.]+$/, "");
-    const result = await uploadBuffer(buffer, {
-      folder: "tajweed",
-      public_id: `${Date.now()}-${base}`,
-    });
+    const result = await Promise.race([
+      uploadBuffer(buffer, {
+        folder: "tajweed",
+        public_id: `${Date.now()}-${base}`,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000)),
+    ]);
     return { url: result.secure_url, cloudinaryId: result.public_id };
   }
   const filename = `${Date.now()}-${originalname.replace(/[^\w.\-]/g, "_")}`;
