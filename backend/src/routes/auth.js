@@ -171,10 +171,16 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 
   const normalizedEmail = String(email).trim().toLowerCase();
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user?.passwordHash) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   const ok = await bcrypt.compare(String(password), user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+
+  const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
+  if (bootstrapEmail && normalizedEmail === bootstrapEmail && user.role !== 'ADMIN') {
+    user = await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+  }
+
   res.cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
 

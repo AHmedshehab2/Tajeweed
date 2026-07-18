@@ -27,7 +27,20 @@ async function resolveOAuthUser(provider, profile) {
 
   // 1. Try to find an existing user by provider ID
   const existingByProvider = await prisma.user.findFirst({ where: { [idField]: providerId } });
-  if (existingByProvider) return existingByProvider;
+  if (existingByProvider) {
+    const bootstrap = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
+    if (
+      bootstrap &&
+      existingByProvider.email?.toLowerCase() === bootstrap &&
+      existingByProvider.role !== 'ADMIN'
+    ) {
+      return prisma.user.update({ where: { id: existingByProvider.id }, data: { role: 'ADMIN' } });
+    }
+    return existingByProvider;
+  }
+
+  const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
+  const shouldBeAdmin = !!(email && bootstrapEmail && email.toLowerCase() === bootstrapEmail);
 
   // 2. Try to find an existing user by email — link the provider to the existing account
   if (email) {
@@ -35,21 +48,24 @@ async function resolveOAuthUser(provider, profile) {
     if (existingByEmail) {
       const updated = await prisma.user.update({
         where: { id: existingByEmail.id },
-        data: { [idField]: providerId, avatar: existingByEmail.avatar || avatar, provider: existingByEmail.provider || provider },
+        data: {
+          [idField]: providerId,
+          avatar: existingByEmail.avatar || avatar,
+          provider: existingByEmail.provider || provider,
+          ...(shouldBeAdmin && existingByEmail.role !== 'ADMIN' ? { role: 'ADMIN' } : {}),
+        },
       });
       return updated;
     }
   }
 
   // 3. Create a new user
-  const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
-  const role = email && bootstrapEmail && email.toLowerCase() === bootstrapEmail ? 'ADMIN' : 'STUDENT';
   const newUser = await prisma.user.create({
     data: {
       name: displayName,
       email: email || `${provider}_${providerId}_${Date.now()}@oauth.placeholder`,
       passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
-      role,
+      role: shouldBeAdmin ? 'ADMIN' : 'STUDENT',
       avatar,
       provider,
       [idField]: providerId,

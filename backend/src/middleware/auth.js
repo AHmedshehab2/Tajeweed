@@ -52,12 +52,24 @@ async function requireAuth(req, res, next) {
   if (process.env.JWT_SECRET) {
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
-      // Verify tokenVersion hasn't been revoked
+      // Verify tokenVersion hasn't been revoked; load role from DB so promotions apply
       if (payload.id && payload.tokenVersion !== undefined) {
-        const user = await prisma.user.findUnique({ where: { id: payload.id }, select: { tokenVersion: true } });
+        const user = await prisma.user.findUnique({
+          where: { id: payload.id },
+          select: { tokenVersion: true, role: true, name: true, email: true, avatar: true },
+        });
         if (!user || user.tokenVersion !== payload.tokenVersion) {
           return res.status(401).json({ error: 'الجلسة انتهت، سجّل الدخول مجدداً' });
         }
+        req.user = {
+          id: payload.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          tokenVersion: user.tokenVersion,
+        };
+        return next();
       }
       req.user = payload;
       return next();
