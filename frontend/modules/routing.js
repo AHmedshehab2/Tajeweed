@@ -196,6 +196,8 @@ export function refreshUploadTargets() {
   const target = document.querySelector("#upload-target");
   const area = document.querySelector("#upload-area");
   if (!target || !area) return;
+  const targetField = document.querySelector("#upload-target-field");
+  if (targetField) targetField.style.display = area.value === "general" ? "none" : "";
   target.innerHTML = uploadTargets(area.value);
   const boardEl = document.querySelector(".upload-board");
   if (boardEl) boardEl.style.display = area.value === "curriculum" ? "" : "none";

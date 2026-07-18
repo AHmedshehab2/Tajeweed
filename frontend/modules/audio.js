@@ -15,7 +15,7 @@ export function parseDuration(str) {
 
 export function resetPlayButtons(except) {
   document.querySelectorAll(".rich-audio .play").forEach((btn) => {
-    if (btn !== except) btn.textContent = "▶";
+    if (btn !== except) btn.innerHTML = '<span class="icon">play_arrow</span>';
   });
 }
 
@@ -29,30 +29,63 @@ export function cycleSpeed(button) {
     apSetSpeed(rates[idx]);
 }
 
-export function seekRecording(input) {
-  const container = input.closest(".rich-audio");
+function syncSeekVisual(container, pct) {
+  const fill = container.querySelector(".seek-track-fill");
+  const thumb = container.querySelector(".seek-track-thumb");
+  if (fill) fill.style.width = pct + "%";
+  if (thumb) thumb.style.right = pct + "%";
+}
+
+function doSeek(clientX, track) {
+  const container = track.closest(".rich-audio, .mini-player");
   if (!container) return;
-  const dur = audioDuration(container);
-  const pct = Number(input.value);
+  const rect = track.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const pct = Math.round(Math.max(0, Math.min(100, (1 - x / rect.width) * 100)));
   apSeekPercent(pct);
-  input.style.setProperty("--progress", pct + "%");
-  const timeEl = input.previousElementSibling;
-  if (timeEl) timeEl.textContent = formatTime((pct / 100) * dur);
+  syncSeekVisual(container, pct);
+  const dur = audioDuration(container);
+  const seekRow = container.querySelector(".seek-row, .mp-seek-row");
+  const timeEl = seekRow?.querySelector("span:first-child");
+  if (timeEl && dur > 0) timeEl.textContent = formatTime((pct / 100) * dur);
+}
+
+export function onSeekTrackPointerDown(event) {
+  const track = event.currentTarget;
+  track.setPointerCapture(event.pointerId);
+  doSeek(event.clientX, track);
+  track.addEventListener("pointermove", onSeekTrackPointerMove);
+  track.addEventListener("pointerup", onSeekTrackPointerUp);
+  track.addEventListener("pointercancel", onSeekTrackPointerUp);
+}
+
+function onSeekTrackPointerMove(event) {
+  doSeek(event.clientX, event.currentTarget);
+}
+
+function onSeekTrackPointerUp(event) {
+  const track = event.currentTarget;
+  track.removeEventListener("pointermove", onSeekTrackPointerMove);
+  track.removeEventListener("pointerup", onSeekTrackPointerUp);
+  track.removeEventListener("pointercancel", onSeekTrackPointerUp);
 }
 
 export function updateAudioSeek(container, reset = false) {
   if (!container) return;
-  const seek = container.querySelector(".seek-row input");
-  const timeEl = container.querySelector(".seek-row span");
+  const seek = container.querySelector(".seek-track");
+  const timeEl = container.querySelector(".seek-row span:first-child");
   if (!seek || !timeEl) return;
   const gs = apState();
   if (reset || gs.currentRecordingId !== container.dataset.recordingId) {
-    seek.value = 0;
     timeEl.textContent = "00:00";
+    syncSeekVisual(container, 0);
     return;
   }
   const dur = gs.duration || audioDuration(container);
-  if (dur > 0) seek.value = String(Math.round((gs.currentTime / dur) * 100));
+  if (dur > 0) {
+    const pct = Math.round((gs.currentTime / dur) * 100);
+    syncSeekVisual(container, pct);
+  }
   timeEl.textContent = formatTime(gs.currentTime);
 }
 
@@ -95,7 +128,7 @@ function showCompletionCountdown(completedLessonId) {
   if (!next) {
     const el = document.createElement("div");
     el.className = "completion-toast";
-    el.innerHTML = `<div class="completion-toast-inner"><div class="completion-toast-icon">🎉</div><div class="completion-toast-text">تهانينا!<br>لقد أكملت هذا الباب.</div></div>`;
+    el.innerHTML = `<div class="completion-toast-inner"><div class="completion-toast-icon"><span class="icon">celebration</span></div><div class="completion-toast-text">تهانينا!<br>لقد أكملت هذا الباب.</div></div>`;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 4000);
     return;
@@ -119,7 +152,7 @@ function showCompletionCountdown(completedLessonId) {
 }
 
 function buildCountdownHTML(count, nextLessonObj) {
-  return `<div class="countdown-inner"><div class="countdown-check">✓ تم إكمال الدرس</div><div class="countdown-next-title">الدرس التالي: ${esc(nextLessonObj.title)}</div><div class="countdown-timer">يبدأ خلال <span class="countdown-number">${count}</span></div><button class="countdown-cancel" onclick="cancelCountdown()">إلغاء</button></div>`;
+  return `<div class="countdown-inner"><div class="countdown-check"><span class="icon">check_circle</span> تم إكمال الدرس</div><div class="countdown-next-title">الدرس التالي: ${esc(nextLessonObj.title)}</div><div class="countdown-timer">يبدأ خلال <span class="countdown-number">${count}</span></div><button class="countdown-cancel" onclick="cancelCountdown()">إلغاء</button></div>`;
 }
 
 
@@ -161,20 +194,20 @@ export function playRecording(button, id) {
 
   if (sameRecording && gs.isPlaying) {
     apPlay(item);
-    button.textContent = "▶";
+    button.innerHTML = '<span class="icon">play_arrow</span>';
     return;
   }
 
   if (sameRecording && !gs.isPlaying) {
     apPlay(item);
-    button.textContent = "❚❚";
+    button.innerHTML = '<span class="icon">pause</span>';
     resetPlayButtons(button);
     return;
   }
 
   resetPlayButtons();
   apPlay(item);
-  button.textContent = "❚❚";
+  button.innerHTML = '<span class="icon">pause</span>';
 
   apiFetch("/progress/activity", {
     method: "POST",
@@ -202,14 +235,13 @@ export function syncAudioUI() {
   const container = document.querySelector(`.rich-audio[data-recording-id="${gs.currentRecordingId}"]`);
   if (container) {
     const playBtn = container.querySelector(".play");
-    const seek = container.querySelector(".seek-row input");
-    const timeEl = container.querySelector(".seek-row span");
+    const seek = container.querySelector(".seek-track");
+    const timeEl = container.querySelector(".seek-row span:first-child");
     const speedBtn = container.querySelector(".speed");
-    if (playBtn) playBtn.textContent = gs.isPlaying ? "❚❚" : "▶";
+    if (playBtn) playBtn.innerHTML = gs.isPlaying ? '<span class="icon">pause</span>' : '<span class="icon">play_arrow</span>';
     if (seek && gs.duration > 0) {
       const pct = Math.round((gs.currentTime / gs.duration) * 100);
-      seek.value = String(pct);
-      seek.style.setProperty("--progress", pct + "%");
+      syncSeekVisual(container, pct);
     }
     if (timeEl) timeEl.textContent = formatTime(gs.currentTime);
     if (speedBtn) {
@@ -228,16 +260,15 @@ export function syncAudioUI() {
     if (fab) fab.style.display = isHidden ? "" : "none";
 
     const playBtn = mini.querySelector(".mp-play");
-    const seek = mini.querySelector(".mp-seek-row input");
+    const seek = mini.querySelector(".mp-seek-row .seek-track");
     const elapsedEl = mini.querySelector("#mp-elapsed");
     const durEl = mini.querySelector("#mp-dur");
     const speedBtn = mini.querySelector(".mp-speed");
     const titleEl = mini.querySelector("#mp-title");
-    if (playBtn) playBtn.textContent = gs.isPlaying ? "❚❚" : "▶";
+    if (playBtn) playBtn.innerHTML = gs.isPlaying ? '<span class="icon">pause</span>' : '<span class="icon">play_arrow</span>';
     if (seek && gs.duration > 0) {
       const pct = Math.round((gs.currentTime / gs.duration) * 100);
-      seek.value = String(pct);
-      seek.style.setProperty("--progress", pct + "%");
+      syncSeekVisual(mini, pct);
     }
     if (elapsedEl) elapsedEl.textContent = formatTime(gs.currentTime);
     if (durEl && gs.duration > 0) durEl.textContent = formatTime(gs.duration);
@@ -257,10 +288,6 @@ export function miniPlayPause() {
     if (btn) playRecording(btn, gs.currentRecordingId);
     else apPlay(recording);
   }
-}
-
-export function miniSeek(input) {
-  apSeekPercent(Number(input.value));
 }
 
 export function miniCycleSpeed(button) {
@@ -334,7 +361,7 @@ export function miniExpand() {
     if (mini) {
       mini.classList.add("expanded");
       const btn = mini.querySelector(".mp-expand-icon");
-      if (btn) btn.textContent = "✕";
+      if (btn) btn.innerHTML = '<span class="icon">close_fullscreen</span>';
     }
   }
 }
@@ -345,7 +372,7 @@ export function miniCollapse() {
   if (mini) {
     mini.classList.remove("expanded");
     const btn = mini.querySelector(".mp-expand-icon");
-    if (btn) btn.textContent = "⤢";
+    if (btn) btn.innerHTML = '<span class="icon">open_in_full</span>';
   }
 }
 

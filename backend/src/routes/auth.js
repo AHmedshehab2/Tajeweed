@@ -18,7 +18,7 @@ const { isGoogleConfigured, isFacebookConfigured } = require('../lib/passport');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME = 100;
-const MIN_PASSWORD = 6;
+const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 128;
 const COOKIE_NAME = 'token';
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -149,7 +149,7 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const userRole = normalizedEmail === 'tajeweed@gmail.com' ? 'ADMIN' : 'STUDENT';
+  const userRole = (process.env.ADMIN_BOOTSTRAP_EMAIL && normalizedEmail === process.env.ADMIN_BOOTSTRAP_EMAIL.trim().toLowerCase()) ? 'ADMIN' : 'STUDENT';
 
   const passwordHash = await bcrypt.hash(password, 10);
   let user;
@@ -184,10 +184,10 @@ router.get('/me', (req, res) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     if (payload.id && payload.tokenVersion !== undefined) {
-      return prisma.user.findUnique({ where: { id: payload.id }, select: { tokenVersion: true } })
+      return prisma.user.findUnique({ where: { id: payload.id }, select: { tokenVersion: true, role: true } })
         .then(u => {
           if (!u || u.tokenVersion !== payload.tokenVersion) return res.json({ user: null });
-          res.json({ user: payload });
+          res.json({ user: { ...payload, role: u.role } });
         })
         .catch(() => res.json({ user: null }));
     }

@@ -83,7 +83,7 @@ export function toggleTheme() {
 export const progressBar = (value) =>
   `<div class="progress-line" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value}"><i style="width:${value}%"></i></div>`;
 export const empty = (text) =>
-  `<div class="empty-state"><span>◌</span><p>${esc(text)}</p></div>`;
+  `<div class="empty-state"><span class="icon">inbox</span><p>${esc(text)}</p></div>`;
 export const crumbs = (items) =>
   `<nav class="breadcrumb" aria-label="مسار الصفحة">${items.map(esc).join(" ← ")}</nav>`;
 export function adminTable(headers, rows) {
@@ -136,7 +136,7 @@ export function toast(message, type = "info", durationMs = 4000) {
   const container = getToastContainer();
   const el = document.createElement("div");
   el.className = `toast toast-${type}`;
-  el.innerHTML = `<span>${esc(message)}</span><button class="toast-close" aria-label="إغلاق">&times;</button>`;
+  el.innerHTML = `<span>${esc(message)}</span><button class="toast-close" aria-label="إغلاق"><span class="icon">close</span></button>`;
   const remove = () => { el.classList.add("removing"); el.addEventListener("animationend", () => el.remove()); };
   el.querySelector(".toast-close").onclick = remove;
   container.appendChild(el);
