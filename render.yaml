@@ -16,9 +16,3 @@ services:
         value: "https://tajeweed-v2-0.onrender.com"
       - key: DATABASE_URL
         value: file:./data/prod.db
-      - key: CLOUDINARY_CLOUD_NAME
-        value: ""
-      - key: CLOUDINARY_API_KEY
-        value: ""
-      - key: CLOUDINARY_API_SECRET
-        value: ""
