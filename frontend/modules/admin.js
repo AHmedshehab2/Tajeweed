@@ -190,28 +190,35 @@ export async function saveLesson(event) {
 export async function uploadResource(event) {
   event.preventDefault();
   if (!isAdmin(state.session)) return;
-  const area = document.querySelector("#upload-area").value,
-    targetId = document.querySelector("#upload-target")?.value,
-    title = document.querySelector("#upload-title").value.trim(),
-    type = document.querySelector("#upload-type").value,
-    file = document.querySelector("#upload-file").files[0];
-  if (!title || !file) return;
-  const form = new FormData();
-  form.append("area", area);
-  if (area !== "general") form.append("targetId", targetId);
-  form.append("title", title);
-  form.append("type", type);
-  form.append("file", file);
-  const boardEl = document.querySelector("#upload-board");
-  const boardFile = boardEl && boardEl.files[0];
-  if (boardFile) form.append("board", boardFile);
+  const btn = event.target.querySelector('button[type="submit"]');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "جاري الرفع...";
   try {
+    const area = document.querySelector("#upload-area").value,
+      targetId = document.querySelector("#upload-target")?.value,
+      title = document.querySelector("#upload-title").value.trim(),
+      type = document.querySelector("#upload-type").value,
+      file = document.querySelector("#upload-file").files[0];
+    if (!title || !file) return;
+    const form = new FormData();
+    form.append("area", area);
+    if (area !== "general") form.append("targetId", targetId);
+    form.append("title", title);
+    form.append("type", type);
+    form.append("file", file);
+    const boardEl = document.querySelector("#upload-board");
+    const boardFile = boardEl && boardEl.files[0];
+    if (boardFile) form.append("board", boardFile);
     await apiFetch("/upload", { method: "POST", body: form });
     await loadAll();
     toast(area === "general" ? "تم رفع المورد العام بنجاح." : "تم رفع المورد وربطه بالمحتوى المختار.", "success");
     window._render();
   } catch (err) {
     toast(err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 export async function addAnnouncement(event) {

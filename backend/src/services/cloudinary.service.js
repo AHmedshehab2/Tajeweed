@@ -17,13 +17,26 @@ if (isConfigured) {
 
 function uploadBuffer(buffer, options = {}) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+
     const uploadStream = cloudinary.uploader.upload_stream(
       { resource_type: 'auto', ...options },
       (error, result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         if (error) reject(error);
         else resolve(result);
       },
     );
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      uploadStream.destroy();
+      reject(new Error("Cloudinary upload timed out after 20s"));
+    }, 20000);
+
     streamifier.createReadStream(buffer).pipe(uploadStream);
   });
 }

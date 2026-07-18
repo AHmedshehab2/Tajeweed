@@ -53,13 +53,10 @@ const KIND_LABEL = {
 async function storeFile(buffer, originalname) {
   if (cloudinaryConfigured) {
     const base = originalname.replace(/[^\w.\-]/g, "_").replace(/\.[^.]+$/, "");
-    const result = await Promise.race([
-      uploadBuffer(buffer, {
-        folder: "tajweed",
-        public_id: `${Date.now()}-${base}`,
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000)),
-    ]);
+    const result = await uploadBuffer(buffer, {
+      folder: "tajweed",
+      public_id: `${Date.now()}-${base}`,
+    });
     return { url: result.secure_url, cloudinaryId: result.public_id };
   }
   const filename = `${Date.now()}-${originalname.replace(/[^\w.\-]/g, "_")}`;
@@ -160,6 +157,18 @@ async function validateTargetId(req, res, next) {
   next();
 }
 
+function timeoutHandler(ms) {
+  return (req, res, next) => {
+    const timer = setTimeout(() => {
+      if (!res.headersSent) {
+        res.status(504).json({ error: 'انتهت مهلة الرفع' });
+      }
+    }, ms);
+    res.on('finish', () => clearTimeout(timer));
+    next();
+  };
+}
+
 const uploadFields = upload.fields([
   { name: "file", maxCount: 1 },
   { name: "board", maxCount: 1 },
@@ -172,6 +181,7 @@ router.post(
   uploadFields,
   validateUpload,
   validateTargetId,
+  timeoutHandler(60000),
   asyncHandler(async (req, res) => {
     const { area, targetId, title, type } = req.body;
     const file = req.files && req.files["file"] && req.files["file"][0];
