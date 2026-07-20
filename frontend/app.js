@@ -1,7 +1,7 @@
 /* Client-side LMS — thin entry point. All logic lives in modules/. */
 import { applyTheme, toggleTheme, showConfirm, showPrompt, openImageOverlay, toast, showLoading, hideLoading } from "./modules/utils.js";
 import { state } from "./modules/state.js";
-import { apiFetch, loadAll, signIn, signUp, logout, setSupabaseConfig, setSupabaseClient } from "./modules/api.js";
+import { apiFetch, loadAll, signIn, signUp, logout, setSupabaseConfig, setSupabaseClient, supabaseClient, requestPasswordReset, updatePassword } from "./modules/api.js";
 import { playRecording, cycleSpeed, miniPlayPause, miniCycleSpeed, miniPrevLesson, miniNextLesson, miniClose, miniReopen, miniExpand, miniCollapse, cancelCountdown, onSeekTrackPointerDown } from "./modules/audio.js";
 import { go, openLesson, openQuarter, openKhutbah, selectChapter, filterCurriculum, filterQuran, filterKhutbahs, filterGlobal, advanceLesson, toggleQuarter, refreshUploadTargets, hashToState } from "./modules/routing.js";
 import { render } from "./modules/pages.js";
@@ -26,6 +26,18 @@ window.render = render;
 window.signIn = signIn;
 window.signUp = signUp;
 window.logout = logout;
+window.togglePasswordVisibility = (btn) => {
+  const wrap = btn.closest('.password-wrap');
+  const input = wrap.querySelector('input');
+  const isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  wrap.querySelector('.icon-on').style.display = isPassword ? 'none' : '';
+  wrap.querySelector('.icon-off').style.display = isPassword ? '' : 'none';
+  btn.setAttribute('aria-label', isPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+};
+window.showForgotPasswordView = () => { state.authView = "forgot-password"; render(); };
+window.requestPasswordReset = requestPasswordReset;
+window.updatePassword = updatePassword;
 window.playRecording = playRecording;
 window.cycleSpeed = cycleSpeed;
 window.miniPlayPause = miniPlayPause;
@@ -77,6 +89,12 @@ async function init() {
         setSupabaseConfig(config.supabase);
         if (window.supabase) {
           setSupabaseClient(window.supabase.createClient(config.supabase.url, config.supabase.publishableKey));
+          supabaseClient.auth.onAuthStateChange((event) => {
+            if (event === "PASSWORD_RECOVERY") {
+              state.authView = "reset-password";
+              render();
+            }
+          });
         }
       }
     }

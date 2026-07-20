@@ -213,7 +213,7 @@ export async function uploadResource(event) {
     const boardFile = boardEl && boardEl.files[0];
     if (boardFile) form.append("board", boardFile);
 
-    const res = await apiFetch("/upload", { method: "POST", body: form });
+    const res = await apiFetch("/upload", { method: "POST", body: form, timeout: 120000 });
     console.log("[upload 2] apiFetch resolved OK");
 
     await loadAll();

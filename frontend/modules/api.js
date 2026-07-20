@@ -153,3 +153,71 @@ export function logout() {
   state.authView = "login";
   window._render();
 }
+
+export async function requestPasswordReset(event) {
+  event.preventDefault();
+  const email = document.querySelector("#reset-email").value.trim();
+  if (!email) return;
+  showLoading();
+  try {
+    if (supabaseConfig.enabled && supabaseClient) {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/`
+      });
+      if (error) throw error;
+      toast("تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.", "success");
+      state.authView = "login";
+      window._render();
+    } else {
+      toast("استعادة كلمة المرور غير متوفرة لتهيئة الدخول الحالية.", "error");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+export async function updatePassword(event) {
+  event.preventDefault();
+  const newPassword = document.querySelector("#new-password").value;
+  const confirmPassword = document.querySelector("#confirm-password").value;
+  if (!newPassword || newPassword.length < 8) {
+    toast("كلمة المرور يجب أن تكون 8 أحرف على الأقل", "error");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    toast("كلمتا المرور غير متطابقتين", "error");
+    return;
+  }
+  showLoading();
+  try {
+    if (supabaseConfig.enabled && supabaseClient) {
+      const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const { user } = await apiFetch("/auth/supabase", {
+          method: "POST",
+          body: JSON.stringify({ accessToken: session.access_token, purpose: "password_reset" }),
+        });
+        localStorage.setItem("tajweed-user", JSON.stringify(user));
+        state.session = user;
+        await loadAll();
+        toast("تم تحديث كلمة المرور وتسجيل الدخول بنجاح.", "success");
+        window.go("home");
+      } else {
+        toast("تم تحديث كلمة المرور بنجاح. يرجى تسجيل الدخول.", "success");
+        state.authView = "login";
+        window._render();
+      }
+    } else {
+      toast("الإجراء غير صالح لتهيئة الدخول الحالية.", "error");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    hideLoading();
+  }
+}

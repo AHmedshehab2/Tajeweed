@@ -1,12 +1,12 @@
-const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
-const backendDir = path.join(__dirname);
-const testDbPath = path.join(backendDir, 'prisma/test.db');
+const backendDir = __dirname;
+const testDbPath = require('path').join(backendDir, 'prisma/test.db');
+const testDatabaseUrl = 'file:./prisma/test.db';
 
 module.exports = async function setup() {
-  process.env.DATABASE_URL = `file:${testDbPath}`;
+  process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = 'test-secret-for-testing-only';
   process.env.NODE_ENV = 'test';
 
@@ -15,13 +15,13 @@ module.exports = async function setup() {
 
   execSync('npx prisma migrate deploy', {
     cwd: backendDir,
-    env: { ...process.env, DATABASE_URL: `file:${testDbPath}` },
+    env: { ...process.env, DATABASE_URL: testDatabaseUrl },
     stdio: 'pipe',
   });
 
   execSync('node prisma/seed.js', {
     cwd: backendDir,
-    env: { ...process.env, DATABASE_URL: `file:${testDbPath}`, SEED_STUDENT_PASSWORD: 'test1234', SEED_ADMIN_PASSWORD: 'admin1234' },
+    env: { ...process.env, DATABASE_URL: testDatabaseUrl, SEED_STUDENT_PASSWORD: 'test1234', SEED_ADMIN_PASSWORD: 'admin1234' },
     stdio: 'pipe',
   });
 };

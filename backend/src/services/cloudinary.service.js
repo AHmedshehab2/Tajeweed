@@ -29,13 +29,12 @@ function uploadBuffer(buffer, options = {}) {
         else resolve(result);
       },
     );
-
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       uploadStream.destroy();
-      reject(new Error("Cloudinary upload timed out after 20s"));
-    }, 20000);
+      reject(new Error("Cloudinary upload timed out after 110s"));
+    }, 110000);
 
     streamifier.createReadStream(buffer).pipe(uploadStream);
   });

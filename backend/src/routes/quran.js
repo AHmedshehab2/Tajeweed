@@ -2,6 +2,8 @@ const router = require('express').Router();
 const prisma = require('../prisma');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const asyncHandler = require('../lib/asyncHandler');
+const { requiredString, integer } = require('../lib/validation');
+const { queueMediaCleanup, drainMediaCleanupJobs } = require('../services/media-cleanup.service');
 
 // List all hizbs with quarters
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
@@ -14,13 +16,16 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
 // Create hizb
 router.post('/', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
-  const { number, juz, title } = req.body;
-  if (!number || !title) return res.status(400).json({ error: 'الرقم والعنوان مطلوبان' });
+  const number = integer(req.body.number, 'رقم الحزب', { min: 1, max: 60 });
+  const juz = req.body.juz === undefined || req.body.juz === null || req.body.juz === ''
+    ? Math.ceil(number / 2)
+    : integer(req.body.juz, 'رقم الجزء', { min: 1, max: 30 });
+  const title = requiredString(req.body.title, 'العنوان', { max: 160 });
   try {
     const hizb = await prisma.hizb.create({
       data: {
-        number: Number(number),
-        juz: juz ? Number(juz) : Math.ceil(Number(number) / 2),
+        number,
+        juz,
         title,
         quarters: {
           create: [
@@ -42,7 +47,14 @@ router.post('/', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
 
 // Delete hizb (cascades quarters/recordings/resources/progress)
 router.delete('/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
-  await prisma.hizb.delete({ where: { id: req.params.id } });
+  const hizb = await prisma.hizb.findUnique({ where: { id: req.params.id }, include: { quarters: { include: { recordings: true, resources: true } } } });
+  if (!hizb) return res.status(404).json({ error: 'السجل غير موجود' });
+  const media = hizb.quarters.flatMap((quarter) => [...quarter.recordings, ...quarter.resources]);
+  await prisma.$transaction(async (tx) => {
+    await queueMediaCleanup(tx, media);
+    await tx.hizb.delete({ where: { id: hizb.id } });
+  });
+  drainMediaCleanupJobs().catch(() => {});
   res.status(204).end();
 }));
 
@@ -50,11 +62,10 @@ router.delete('/:id', requireAuth, requireAdmin, asyncHandler(async (req, res) =
 
 // Create quarter in a hizb
 router.post('/:hizbId/quarters', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
-  const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'اسم الربع مطلوب' });
+  const name = requiredString(req.body.name, 'اسم الربع', { max: 160 });
   const hizb = await prisma.hizb.findUnique({ where: { id: req.params.hizbId }, include: { quarters: true } });
   if (!hizb) return res.status(404).json({ error: 'الحزب غير موجود' });
-  const nextNumber = hizb.quarters.length + 1;
+  const nextNumber = hizb.quarters.length ? Math.max(...hizb.quarters.map((quarter) => quarter.number)) + 1 : 1;
   const quarter = await prisma.quarter.create({
     data: { hizbId: req.params.hizbId, number: nextNumber, name },
   });
@@ -63,7 +74,13 @@ router.post('/:hizbId/quarters', requireAuth, requireAdmin, asyncHandler(async (
 
 // Delete quarter
 router.delete('/:hizbId/quarters/:quarterId', requireAuth, requireAdmin, asyncHandler(async (req, res) => {
-  await prisma.quarter.delete({ where: { id: req.params.quarterId } });
+  const quarter = await prisma.quarter.findFirst({ where: { id: req.params.quarterId, hizbId: req.params.hizbId }, include: { recordings: true, resources: true } });
+  if (!quarter) return res.status(404).json({ error: 'الربع غير موجود في الحزب المحدد' });
+  await prisma.$transaction(async (tx) => {
+    await queueMediaCleanup(tx, [...quarter.recordings, ...quarter.resources]);
+    await tx.quarter.delete({ where: { id: quarter.id } });
+  });
+  drainMediaCleanupJobs().catch(() => {});
   res.status(204).end();
 }));
 

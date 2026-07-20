@@ -171,10 +171,13 @@ const _filterGlobal = (query) => {
 };
 export const filterGlobal = debounce(_filterGlobal, 300);
 export async function advanceLesson(id) {
-  if (lessonStatus(id) === "completed") return;
+  const current = lessonStatus(id);
+  if (current === "completed") return;
+  const state = current === "not-started" ? "in-progress" : "completed";
   try {
     const { status } = await apiFetch(`/progress/lessons/${id}`, {
       method: "POST",
+      body: JSON.stringify({ state }),
     });
     progressCache.lessons[id] = status;
     window._render();
@@ -184,8 +187,10 @@ export async function advanceLesson(id) {
 }
 export async function toggleQuarter(id) {
   try {
+    const requestedCompleted = !progressCache.quarters.includes(id);
     const { completed } = await apiFetch(`/progress/quarters/${id}`, {
       method: "POST",
+      body: JSON.stringify({ completed: requestedCompleted }),
     });
     progressCache.quarters = completed
       ? [...progressCache.quarters, id]

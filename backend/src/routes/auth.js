@@ -12,6 +12,7 @@ const {
 } = require('../lib/supabase');
 const {
   requireAuth,
+  requireSameOrigin,
   resolvePrismaUserFromSupabase,
 } = require('../middleware/auth');
 const { isGoogleConfigured, isFacebookConfigured } = require('../lib/passport');
@@ -99,6 +100,16 @@ function publicUser(user) {
   };
 }
 
+function hasVerifiedEmail(claims) {
+  return Boolean(claims?.email_verified || claims?.emailVerifiedAt || claims?.email_confirmed_at);
+}
+
+async function promoteVerifiedBootstrapUser(user, claims) {
+  const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
+  if (!bootstrapEmail || user.email !== bootstrapEmail || !hasVerifiedEmail(claims) || user.role === 'ADMIN') return user;
+  return prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN', tokenVersion: { increment: 1 } } });
+}
+
 // Public config for Supabase client and OAuth providers on the frontend
 router.get('/config', (_req, res) => {
   res.json({
@@ -111,7 +122,7 @@ router.get('/config', (_req, res) => {
 });
 
 // Exchange a Supabase access token for the app user profile
-router.post('/supabase', async (req, res) => {
+router.post('/supabase', requireSameOrigin, async (req, res) => {
   if (!isSupabaseConfigured()) {
     return res.status(503).json({ error: 'Supabase غير مُعد' });
   }
@@ -124,16 +135,26 @@ router.post('/supabase', async (req, res) => {
   try {
     const auth = await verifySupabaseUser(req);
     if (!auth) return res.status(401).json({ error: 'جلسة غير صالحة' });
-    const user = await resolvePrismaUserFromSupabase(auth);
+    let user = await resolvePrismaUserFromSupabase(auth);
     if (!user) return res.status(401).json({ error: 'جلسة غير صالحة' });
+
+    if (req.body?.purpose === 'password_reset') {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { tokenVersion: { increment: 1 } },
+      });
+    }
+
+    user = await promoteVerifiedBootstrapUser(user, auth.userClaims);
     res.cookie(COOKIE_NAME, token, cookieOptions()).json({ user: publicUser(user), provider: 'supabase' });
   } catch (_) {
     res.status(401).json({ error: 'جلسة غير صالحة' });
   }
 });
 
-router.post('/register', registerLimiter, async (req, res) => {
-  const { name, email, password, role } = req.body;
+router.post('/register', requireSameOrigin, registerLimiter, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'التسجيل المحلي غير متاح في الإنتاج' });
+  const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'الاسم والبريد وكلمة المرور مطلوبة' });
@@ -149,13 +170,11 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const userRole = (process.env.ADMIN_BOOTSTRAP_EMAIL && normalizedEmail === process.env.ADMIN_BOOTSTRAP_EMAIL.trim().toLowerCase()) ? 'ADMIN' : 'STUDENT';
-
   const passwordHash = await bcrypt.hash(password, 10);
   let user;
   try {
     user = await prisma.user.create({
-      data: { name: name.trim(), email: normalizedEmail, passwordHash, role: userRole },
+      data: { name: name.trim(), email: normalizedEmail, passwordHash, role: 'STUDENT' },
     });
   } catch (err) {
     if (err.code === 'P2002') return res.status(409).json({ error: 'البريد الإلكتروني مستخدم بالفعل' });
@@ -164,7 +183,8 @@ router.post('/register', registerLimiter, async (req, res) => {
   res.status(201).cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
 
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', requireSameOrigin, loginLimiter, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'تسجيل الدخول المحلي غير متاح في الإنتاج' });
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'البريد وكلمة المرور مطلوبة' });
@@ -175,11 +195,6 @@ router.post('/login', loginLimiter, async (req, res) => {
   if (!user?.passwordHash) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
   const ok = await bcrypt.compare(String(password), user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
-
-  const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
-  if (bootstrapEmail && normalizedEmail === bootstrapEmail && user.role !== 'ADMIN') {
-    user = await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
-  }
 
   res.cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
@@ -206,7 +221,7 @@ router.get('/me', (req, res) => {
   }
 });
 
-router.post('/logout', (_req, res) => {
+router.post('/logout', requireSameOrigin, (_req, res) => {
   res.setHeader('Clear-Site-Data', '"cookies"');
   const opts = cookieOptions();
   delete opts.maxAge;

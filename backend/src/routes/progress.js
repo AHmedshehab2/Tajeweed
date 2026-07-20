@@ -2,6 +2,7 @@ const router = require('express').Router();
 const prisma = require('../prisma');
 const { requireAuth } = require('../middleware/auth');
 const asyncHandler = require('../lib/asyncHandler');
+const { requiredString, optionalString } = require('../lib/validation');
 
 // GET /api/progress/me -> { lessons: {lessonId: status}, quarters: [quarterId...], activity: [...] }
 router.get('/me', requireAuth, asyncHandler(async (req, res) => {
@@ -34,13 +35,17 @@ router.post('/lessons/:id', requireAuth, asyncHandler(async (req, res) => {
   const current = existing ? existing.status.toLowerCase().replaceAll('_', '-') : 'not-started';
 
   let next;
-  if (targetState && (targetState === 'in-progress' || targetState === 'completed')) {
-    const GUARD = { 'in-progress': 'not-started', 'completed': 'in-progress' };
-    const expected = GUARD[targetState];
-    if (current !== expected) {
-      return res.json({ status: current });
+  if (targetState !== undefined) {
+    if (!['not-started', 'in-progress', 'completed'].includes(targetState)) {
+      return res.status(400).json({ error: 'حالة التقدم غير صالحة' });
     }
-    next = targetState;
+    const GUARD = { 'in-progress': 'not-started', 'completed': 'in-progress' };
+    const requiredPrereq = GUARD[targetState];
+    if (requiredPrereq && current !== requiredPrereq) {
+      next = current;
+    } else {
+      next = targetState;
+    }
   } else {
     next = CYCLE[current];
   }
@@ -59,19 +64,21 @@ router.post('/quarters/:id', requireAuth, asyncHandler(async (req, res) => {
   const quarterId = req.params.id;
   const quarterExists = await prisma.quarter.findUnique({ where: { id: quarterId }, select: { id: true } });
   if (!quarterExists) return res.status(404).json({ error: 'الربع غير موجود' });
+  if (typeof req.body?.completed !== 'boolean') return res.status(400).json({ error: 'حالة الإكمال مطلوبة' });
   const existing = await prisma.quarterProgress.findUnique({ where: { userId_quarterId: { userId: req.user.id, quarterId } } });
-  if (existing) {
+  if (!req.body.completed && existing) {
     await prisma.quarterProgress.delete({ where: { userId_quarterId: { userId: req.user.id, quarterId } } });
     return res.json({ completed: false });
   }
-  await prisma.quarterProgress.create({ data: { userId: req.user.id, quarterId } });
-  res.json({ completed: true });
+  if (req.body.completed && !existing) await prisma.quarterProgress.create({ data: { userId: req.user.id, quarterId } });
+  res.json({ completed: req.body.completed });
 }));
 
 // POST /api/progress/activity -> log a listen event, keeps last 5
 router.post('/activity', requireAuth, asyncHandler(async (req, res) => {
-  const { refId, title, kind } = req.body;
-  if (!refId || !title) return res.status(400).json({ error: 'بيانات ناقصة' });
+  const refId = requiredString(req.body.refId, 'المرجع', { max: 100 });
+  const title = requiredString(req.body.title, 'العنوان', { max: 240 });
+  const kind = optionalString(req.body.kind, 'النوع', { max: 80 });
   await prisma.activityEntry.deleteMany({ where: { userId: req.user.id, refId } });
   await prisma.activityEntry.create({ data: { userId: req.user.id, refId, title, kind: kind || 'استماع' } });
   const surplus = await prisma.activityEntry.findMany({ where: { userId: req.user.id }, orderBy: { date: 'desc' }, skip: 5 });

@@ -6,12 +6,13 @@ const prisma = require("../prisma");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const asyncHandler = require("../lib/asyncHandler");
 const { sniffBuffer, matchesDeclaredType } = require("../lib/sniff");
-const { isConfigured: cloudinaryConfigured, uploadBuffer, destroy } = require("../services/cloudinary.service");
+const { isConfigured: storageConfigured, uploadBuffer, destroy } = require("../services/r2.service");
+const { queueMediaCleanup, drainMediaCleanupJobs } = require('../services/media-cleanup.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 250 * 1024 * 1024 } });
 const UPLOADS_DIR = path.join(__dirname, "../../uploads");
 
-if (!cloudinaryConfigured) {
+if (!storageConfigured) {
   try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }); } catch (_) {}
 }
 
@@ -39,8 +40,8 @@ const ALLOWED_MIMETYPES = {
 };
 
 const SIZE_LIMITS = {
-  recording: 250 * 1024 * 1024,
-  pdf: 50 * 1024 * 1024,
+  recording: 100 * 1024 * 1024,
+  pdf: 10 * 1024 * 1024,
   image: 10 * 1024 * 1024,
   attachment: 10 * 1024 * 1024,
 };
@@ -53,7 +54,7 @@ const KIND_LABEL = {
 };
 
 async function storeFile(buffer, originalname) {
-  if (cloudinaryConfigured) {
+  if (storageConfigured) {
     const base = originalname.replace(/[^\w.\-]/g, "_").replace(/\.[^.]+$/, "");
     const result = await uploadBuffer(buffer, {
       folder: "tajweed",
@@ -181,26 +182,15 @@ const uploadFields = upload.fields([
   { name: "board", maxCount: 1 },
 ]);
 
-router.use((req, _res, next) => {
-  console.log("[upload 1] route hit", req.method, req.path);
-  next();
-});
-
 router.post(
   "/",
   requireAuth,
   requireAdmin,
-  timeoutHandler(120000),
+  timeoutHandler(600000),
   uploadFields,
-  (req, _res, next) => {
-    console.log("[upload 2] multer done, fields:", Object.keys(req.body || {}), "files:", Object.keys(req.files || {}));
-    next();
-  },
   validateUpload,
   validateTargetId,
   asyncHandler(async (req, res) => {
-    res.on("finish", () => console.log("[upload DONE] status:", res.statusCode));
-    console.log("[upload 3] handler start — cloudinaryConfigured:", cloudinaryConfigured);
     const { area, targetId, title, type } = req.body;
     const file = req.files && req.files["file"] && req.files["file"][0];
     if (!file || !area || !title)
@@ -209,12 +199,10 @@ router.post(
       return res.status(400).json({ error: "بيانات ناقصة" });
 
     let fileResult, boardResult;
-    console.log("[upload 4] storeFile start — size:", file.size, "name:", file.originalname);
     try {
       fileResult = await storeFile(file.buffer, file.originalname);
-      console.log("[upload 5] storeFile done — url:", fileResult.url, "cloudinaryId:", fileResult.cloudinaryId);
     } catch (e) {
-      console.log("[upload ERR] storeFile failed:", e.message);
+      console.error("[upload] storeFile failed:", e);
       return res.status(500).json({ error: "فشل حفظ الملف" });
     }
 
@@ -222,7 +210,8 @@ router.post(
     if (boardFile) {
       try {
         boardResult = await storeFile(boardFile.buffer, boardFile.originalname);
-      } catch (_) {
+      } catch (e) {
+        console.error("[upload] storeFile (board) failed:", e);
         tryDeleteFile(fileResult.url, fileResult.cloudinaryId);
         return res.status(500).json({ error: "فشل حفظ صورة السبورة" });
       }
@@ -360,8 +349,11 @@ router.delete(
         where: { id: req.params.id },
       });
       if (!rec) return res.status(404).json({ error: "التسجيل غير موجود" });
-      tryDeleteFile(rec.audioUrl, rec.cloudinaryId);
-      await prisma.recording.delete({ where: { id: req.params.id } });
+      await prisma.$transaction(async (tx) => {
+        await queueMediaCleanup(tx, [rec]);
+        await tx.recording.delete({ where: { id: req.params.id } });
+      });
+      drainMediaCleanupJobs().catch(() => {});
       res.json({ ok: true });
     } catch (err) {
       res.status(400).json({ error: "تعذر حذف التسجيل" });
@@ -379,8 +371,11 @@ router.delete(
         where: { id: req.params.id },
       });
       if (!resrc) return res.status(404).json({ error: "المورد غير موجود" });
-      tryDeleteFile(resrc.fileUrl, resrc.cloudinaryId);
-      await prisma.resource.delete({ where: { id: req.params.id } });
+      await prisma.$transaction(async (tx) => {
+        await queueMediaCleanup(tx, [resrc]);
+        await tx.resource.delete({ where: { id: req.params.id } });
+      });
+      drainMediaCleanupJobs().catch(() => {});
       res.json({ ok: true });
     } catch (err) {
       res.status(400).json({ error: "تعذر حذف المورد" });

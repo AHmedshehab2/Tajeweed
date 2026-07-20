@@ -2,6 +2,8 @@ const router = require("express").Router();
 const prisma = require("../prisma");
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const asyncHandler = require("../lib/asyncHandler");
+const { requiredString, optionalString, integer, stringArray } = require('../lib/validation');
+const { queueMediaCleanup, drainMediaCleanupJobs } = require('../services/media-cleanup.service');
 
 const recSelect = {
   id: true,
@@ -75,7 +77,12 @@ router.get(
             recordings: { select: recSelect, orderBy: { uploadedAt: "desc" } },
           },
         }),
-        prisma.announcement.findMany({ orderBy: { publishedAt: "desc" } }),
+        prisma.announcement.findMany({
+          where: req.user.role === 'ADMIN' ? undefined : {
+            OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+          },
+          orderBy: { publishedAt: "desc" },
+        }),
         prisma.resource.findMany({
           where: { lessonId: null, quarterId: null, khutbahId: null },
           orderBy: { uploadedAt: "desc" },
@@ -124,11 +131,11 @@ router.post(
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const { name, order, description } = req.body;
-    if (!name || !Number.isFinite(Number(order)))
-      return res.status(400).json({ error: "بيانات ناقصة" });
+    const name = requiredString(req.body.name, 'الاسم', { max: 160 });
+    const order = integer(req.body.order, 'الترتيب', { min: 1, max: 10000 });
+    const description = optionalString(req.body.description, 'الوصف');
     const chapter = await prisma.chapter.create({
-      data: { name, order: Number(order), description },
+      data: { name, order, description },
     });
     res.status(201).json(chapter);
   }),
@@ -140,14 +147,15 @@ router.patch(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { name, order, description } = req.body;
-    if (order !== undefined && !Number.isFinite(Number(order)))
-      return res.status(400).json({ error: "بيانات ناقصة" });
+    if (name !== undefined) requiredString(name, 'الاسم', { max: 160 });
+    if (order !== undefined) integer(order, 'الترتيب', { min: 1, max: 10000 });
+    if (description !== undefined) optionalString(description, 'الوصف');
     const chapter = await prisma.chapter.update({
       where: { id: req.params.id },
       data: {
-        name,
+        name: name === undefined ? undefined : name.trim(),
         order: order !== undefined ? Number(order) : undefined,
-        description,
+        description: description === undefined ? undefined : (description?.trim() || null),
       },
     });
     res.json(chapter);
@@ -159,7 +167,14 @@ router.delete(
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await prisma.chapter.delete({ where: { id: req.params.id } });
+    const chapter = await prisma.chapter.findUnique({ where: { id: req.params.id }, include: { lessons: { include: { recordings: true, resources: true } } } });
+    if (!chapter) return res.status(404).json({ error: 'السجل غير موجود' });
+    const media = chapter.lessons.flatMap((lesson) => [...lesson.recordings, ...lesson.resources]);
+    await prisma.$transaction(async (tx) => {
+      await queueMediaCleanup(tx, media);
+      await tx.chapter.delete({ where: { id: chapter.id } });
+    });
+    drainMediaCleanupJobs().catch(() => {});
     res.status(204).end();
   }),
 );
@@ -170,9 +185,11 @@ router.post(
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
-    const { chapterId, title, description, objectives } = req.body;
-    if (!chapterId || !title)
-      return res.status(400).json({ error: "بيانات ناقصة" });
+    const { chapterId } = req.body;
+    const title = requiredString(req.body.title, 'العنوان', { max: 240 });
+    const description = optionalString(req.body.description, 'الوصف');
+    const objectives = stringArray(req.body.objectives || [], 'الأهداف');
+    if (typeof chapterId !== 'string' || !chapterId) return res.status(400).json({ error: "بيانات ناقصة" });
     const chapterExists = await prisma.chapter.findUnique({
       where: { id: chapterId },
       select: { id: true },
@@ -184,7 +201,7 @@ router.post(
         chapterId,
         title,
         description,
-        objectives: JSON.stringify(objectives || []),
+        objectives: JSON.stringify(objectives),
       },
     });
     res.status(201).json(lesson);
@@ -197,13 +214,17 @@ router.patch(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { chapterId, title, description, objectives } = req.body;
+    if (chapterId !== undefined && (typeof chapterId !== 'string' || !chapterId)) return res.status(400).json({ error: 'بيانات غير صالحة' });
+    if (title !== undefined) requiredString(title, 'العنوان', { max: 240 });
+    if (description !== undefined) optionalString(description, 'الوصف');
+    if (objectives !== undefined) stringArray(objectives, 'الأهداف');
     const lesson = await prisma.lesson.update({
       where: { id: req.params.id },
       data: {
         chapterId,
-        title,
-        description,
-        objectives: objectives ? JSON.stringify(objectives) : undefined,
+        title: title === undefined ? undefined : title.trim(),
+        description: description === undefined ? undefined : (description?.trim() || null),
+        objectives: objectives === undefined ? undefined : JSON.stringify(objectives),
       },
     });
     res.json(lesson);
@@ -215,7 +236,13 @@ router.delete(
   requireAuth,
   requireAdmin,
   asyncHandler(async (req, res) => {
-    await prisma.lesson.delete({ where: { id: req.params.id } });
+    const lesson = await prisma.lesson.findUnique({ where: { id: req.params.id }, include: { recordings: true, resources: true } });
+    if (!lesson) return res.status(404).json({ error: 'السجل غير موجود' });
+    await prisma.$transaction(async (tx) => {
+      await queueMediaCleanup(tx, [...lesson.recordings, ...lesson.resources]);
+      await tx.lesson.delete({ where: { id: lesson.id } });
+    });
+    drainMediaCleanupJobs().catch(() => {});
     res.status(204).end();
   }),
 );

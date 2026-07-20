@@ -13,12 +13,9 @@ async function resolvePrismaUserFromSupabase(auth) {
   const email = claims.email;
   if (!email) return null;
 
-  let user = await prisma.user.findUnique({ where: { email } });
+  const normalizedEmail = email.trim().toLowerCase();
+  let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) {
-    const role =
-      claims.appMetadata?.role === 'ADMIN' || claims.userMetadata?.role === 'admin'
-        ? 'ADMIN'
-        : 'STUDENT';
     const name =
       claims.userMetadata?.name ||
       claims.userMetadata?.full_name ||
@@ -26,9 +23,9 @@ async function resolvePrismaUserFromSupabase(auth) {
     user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: normalizedEmail,
         passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
-        role,
+        role: 'STUDENT',
         avatar: claims.userMetadata?.avatar_url || null,
       },
     });
@@ -42,6 +39,14 @@ async function resolvePrismaUserFromSupabase(auth) {
     avatar: user.avatar,
     authProvider: 'supabase',
   };
+}
+
+function requireSameOrigin(req, res, next) {
+  const origin = req.get('origin');
+  if (!origin) return next();
+  const configured = (process.env.CLIENT_ORIGIN || '').split(',').map((value) => value.trim());
+  if (configured.includes(origin)) return next();
+  return res.status(403).json({ error: 'مصدر الطلب غير مسموح' });
 }
 
 async function requireAuth(req, res, next) {
@@ -107,5 +112,6 @@ function requireAdmin(req, res, next) {
 module.exports = {
   requireAuth,
   requireAdmin,
+  requireSameOrigin,
   resolvePrismaUserFromSupabase,
 };
