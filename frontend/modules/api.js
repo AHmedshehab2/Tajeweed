@@ -49,10 +49,45 @@ export async function apiFetch(path, options = {}) {
   }
 }
 
+export async function apiGet(path, options = {}) {
+  return apiFetch(path, { ...options, method: "GET" });
+}
+
+export async function apiPost(path, body, options = {}) {
+  const isFormData = body instanceof FormData;
+  return apiFetch(path, {
+    ...options,
+    method: "POST",
+    body: isFormData ? body : JSON.stringify(body),
+  });
+}
+
+export async function apiPut(path, body, options = {}) {
+  const isFormData = body instanceof FormData;
+  return apiFetch(path, {
+    ...options,
+    method: "PUT",
+    body: isFormData ? body : JSON.stringify(body),
+  });
+}
+
+export async function apiPatch(path, body, options = {}) {
+  const isFormData = body instanceof FormData;
+  return apiFetch(path, {
+    ...options,
+    method: "PATCH",
+    body: isFormData ? body : JSON.stringify(body),
+  });
+}
+
+export async function apiDelete(path, options = {}) {
+  return apiFetch(path, { ...options, method: "DELETE" });
+}
+
 export async function loadAll() {
   const [content, progress] = await Promise.all([
-    apiFetch("/content"),
-    apiFetch("/progress/me"),
+    apiGet("/content"),
+    apiGet("/progress/me"),
   ]);
   setData(content);
   setProgressCache({
@@ -62,15 +97,17 @@ export async function loadAll() {
   });
   syncStateIds();
   await loadSchedule().catch(() => {});
+  try {
+    const templates = await apiGet("/schedule/templates");
+    state.scheduleTemplates = templates;
+  } catch (_) {}
 }
 
-export async function loadSchedule() {
-  const [scheduleRes, availability] = await Promise.all([
-    apiFetch("/schedule"),
-    apiFetch("/schedule/availability"),
-  ]);
+export async function loadSchedule(weekStart) {
+  const params = weekStart ? `?weekStart=${weekStart}` : '';
+  const scheduleRes = await apiGet(`/schedule${params}`);
   state.scheduleDays = scheduleRes.days;
-  state.scheduleAvailability = availability;
+  state.scheduleWeekStart = scheduleRes.weekStart;
 }
 
 export function syncStateIds() {
@@ -109,17 +146,11 @@ export async function signIn(event) {
       const session = data.session;
       if (!session) throw new Error("فشل تسجيل الدخول: لم يتم العثور على جلسة نشطة");
 
-      const { user } = await apiFetch("/auth/supabase", {
-        method: "POST",
-        body: JSON.stringify({ accessToken: session.access_token }),
-      });
+      const { user } = await apiPost("/auth/supabase", { accessToken: session.access_token });
       write(STORAGE.user, user);
       state.session = user;
     } else {
-      const { user } = await apiFetch("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      const { user } = await apiPost("/auth/login", { email, password });
       write(STORAGE.user, user);
       state.session = user;
     }
@@ -138,10 +169,7 @@ export async function signUp(event) {
     password = document.querySelector("#reg-password").value;
   showLoading();
   try {
-    const { user } = await apiFetch("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ name, email, password }),
-    });
+    const { user } = await apiPost("/auth/register", { name, email, password });
     write(STORAGE.user, user);
     state.session = user;
     await loadAll();
@@ -208,10 +236,7 @@ export async function updatePassword(event) {
       
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
-        const { user } = await apiFetch("/auth/supabase", {
-          method: "POST",
-          body: JSON.stringify({ accessToken: session.access_token, purpose: "password_reset" }),
-        });
+        const { user } = await apiPost("/auth/supabase", { accessToken: session.access_token, purpose: "password_reset" });
         localStorage.setItem("tajweed-user", JSON.stringify(user));
         state.session = user;
         await loadAll();
