@@ -43,7 +43,15 @@ async function resolvePrismaUserFromSupabase(auth) {
 
 function requireSameOrigin(req, res, next) {
   const origin = req.get('origin');
-  if (!origin) return next();
+  if (!origin) {
+    // In production, all mutating requests must carry an Origin header.
+    // This prevents CSRF via non-browser clients (curl, Postman, server-to-server).
+    // In development, allow missing Origin so curl/Postman tooling still works.
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'مصدر الطلب غير مسموح' });
+    }
+    return next();
+  }
   const configured = (process.env.CLIENT_ORIGIN || '').split(',').map((value) => value.trim());
   if (configured.includes(origin)) return next();
   return res.status(403).json({ error: 'مصدر الطلب غير مسموح' });

@@ -82,6 +82,7 @@ router.get(
             OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
           },
           orderBy: { publishedAt: "desc" },
+          include: { affectedDays: true },
         }),
         prisma.resource.findMany({
           where: { lessonId: null, quarterId: null, khutbahId: null },
@@ -116,9 +117,17 @@ router.get(
         resources: k.resources.map(serializeResource),
       })),
       announcements: announcements.map((a) => ({
-        ...a,
+        id: a.id,
+        title: a.title,
+        body: a.body,
+        target: a.target,
+        priority: a.priority,
         publishedAt: a.publishedAt.toISOString().slice(0, 10),
         expiresAt: a.expiresAt ? a.expiresAt.toISOString().slice(0, 10) : "",
+        isScheduleUpdate: a.isScheduleUpdate,
+        scheduleChangeType: a.scheduleChangeType,
+        resolvedAt: a.resolvedAt ? a.resolvedAt.toISOString() : null,
+        affectedDays: a.affectedDays ? a.affectedDays.map(ad => ({ id: ad.id, dayOfWeek: ad.dayOfWeek })) : [],
       })),
       resources: tajweedResources.map(serializeResource),
     });

@@ -19,7 +19,7 @@ export function hashToState() {
   if (page === "lesson" && id) return { page: "lesson", lessonId: id };
   if (page === "quarter" && id) return { page: "quarter", quarterId: id };
   if (page === "khutbah" && id) return { page: "khutbah", khutbahId: id };
-  if (["curriculum", "quran", "khutbahs", "profile", "admin", "search"].includes(page)) return { page };
+  if (["curriculum", "quran", "khutbahs", "profile", "admin", "search", "schedule"].includes(page)) return { page };
   return { page: "home" };
 }
 
@@ -185,6 +185,18 @@ export async function advanceLesson(id) {
     toast(err.message, "error");
   }
 }
+export async function uncompleteLesson(id) {
+  try {
+    const { status } = await apiFetch(`/progress/lessons/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ state: "not-started" }),
+    });
+    progressCache.lessons[id] = status;
+    window._render();
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
 export async function toggleQuarter(id) {
   try {
     const requestedCompleted = !progressCache.quarters.includes(id);
@@ -199,6 +211,16 @@ export async function toggleQuarter(id) {
   } catch (err) {
     toast(err.message, "error");
   }
+}
+export function openScheduleDay(dayOfWeek) {
+  state.page = "schedule";
+  state.scheduleUpdateId = dayOfWeek;
+  pushHash("#schedule");
+  window._render();
+  setTimeout(() => {
+    const el = document.querySelector(`[data-day="${dayOfWeek}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 100);
 }
 export function refreshUploadTargets() {
   const target = document.querySelector("#upload-target");

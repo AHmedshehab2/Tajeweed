@@ -1,5 +1,5 @@
 import { esc, fmt, isAdmin, empty, adminTable, showConfirm, showPrompt, toast } from "./utils.js";
-import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets, resourceLink, getRecentUploads } from "./state.js";
+import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets, resourceLink, getRecentUploads, DAY_LABELS } from "./state.js";
 import { apiFetch, loadAll } from "./api.js";
 import { getState as getAudioState, stop as audioStop } from "./audio-player.js";
 
@@ -13,6 +13,7 @@ export function admin() {
     ["quran", "القرآن"],
     ["khutbahs", "الخطب"],
     ["announcements", "الإعلانات"],
+    ["schedule", "المواعيد"],
   ];
   return `<div class="shell"><div class="page-heading"><div><span class="eyebrow">منطقة خاصة</span><h1 class="headline">لوحة الإدارة</h1></div><button class="primary" style="margin:0" onclick="adminTab('upload')">+ رفع مورد</button></div><section class="admin-layout"><aside class="card admin-menu">${tabs.map(([id, label]) => `<button class="${state.adminTab === id ? "active" : ""}" onclick="adminTab('${id}')">${label}</button>`).join("")}</aside><div class="card admin-content">${adminContent2()}</div></section></div>`;
 }
@@ -79,6 +80,7 @@ function uploadForm() {
 
 function adminContent2() {
   if (state.adminTab === "announcements") return announcementsAdmin();
+  if (state.adminTab === "schedule") return scheduleAdmin();
   return adminContent();
 }
 function announcementsAdmin() {
@@ -87,7 +89,8 @@ function announcementsAdmin() {
     .sort((a, b) =>
       String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")),
     );
-  return `<div class="admin-section"><div class="section-title"><h2>الإعلانات</h2><button class="primary" style="margin:0" onclick="document.getElementById('announcement-form')?.scrollIntoView()">+ إضافة إعلان</button></div><form id="announcement-form" class="editor-form" onsubmit="addAnnouncement(event)"><h3>إضافة إعلان</h3><div class="form-grid"><div class="field"><label for="announcement-title">العنوان</label><input id="announcement-title" required></div><div class="field"><label for="announcement-expires">ينتهي في</label><input id="announcement-expires" type="date"></div><div class="field"><label for="announcement-priority">الأولوية</label><select id="announcement-priority"><option value="normal">عادي</option><option value="important">مهم</option></select></div></div><div class="field"><label for="announcement-body">النص</label><textarea id="announcement-body" required></textarea></div><button class="primary" type="submit">إضافة</button></form><section class="admin-list">${items.length ? items.map((a) => `<article class="admin-item"><div><b>${esc(a.title)}</b><span>${a.expiresAt ? fmt(a.expiresAt) : "بدون انتهاء"} · ${a.priority === "important" ? "مهم" : "عادي"}</span></div><div><button class="text-link" onclick="deleteAnnouncement('${esc(a.id)}')">حذف</button></div></article>`).join("") : empty("لا توجد إعلانات.")}</section></div>`;
+  const dayOptions = [1,2,3,4,5,6,7].map(d => `<option value="${d}">${DAY_LABELS[d]}</option>`).join("");
+  return `<div class="admin-section"><div class="section-title"><h2>الإعلانات</h2><button class="primary" style="margin:0" onclick="document.getElementById('announcement-form')?.scrollIntoView()">+ إضافة إعلان</button></div><form id="announcement-form" class="editor-form" onsubmit="addAnnouncement(event)"><h3>إضافة إعلان</h3><div class="form-grid"><div class="field"><label for="announcement-title">العنوان</label><input id="announcement-title" required></div><div class="field"><label for="announcement-expires">ينتهي في</label><input id="announcement-expires" type="date"></div><div class="field"><label for="announcement-priority">الأولوية</label><select id="announcement-priority"><option value="normal">عادي</option><option value="important">مهم</option></select></div></div><div class="field"><label for="announcement-body">النص</label><textarea id="announcement-body" required></textarea></div><div class="field"><label class="checkbox-label"><input id="announcement-schedule-toggle" type="checkbox" onchange="toggleScheduleFields()"> تحديث موعد</label></div><div id="announcement-schedule-fields" style="display:none"><div class="form-grid"><div class="field"><label>نوع التغيير</label><select id="announcement-change-type"><option value="CANCELLED">إلغاء</option><option value="ADDITIONAL_CLASS">إضافة حصة</option><option value="MODIFIED">تعديل الموعد</option></select></div><div class="field"><label>الأيام المتأثرة</label><select id="announcement-affected-days" multiple size="4">${dayOptions}</select></div></div></div><button class="primary" type="submit">إضافة</button></form><section class="admin-list">${items.length ? items.map((a) => `<article class="admin-item"><div><b>${esc(a.title)}</b>${a.isScheduleUpdate ? `<span class="pill schedule-pill">${a.scheduleChangeType === "CANCELLED" ? "ملغى" : a.scheduleChangeType === "ADDITIONAL_CLASS" ? "إضافة" : "تعديل"}</span>` : ""}<span>${a.expiresAt ? fmt(a.expiresAt) : "بدون انتهاء"} · ${a.priority === "important" ? "مهم" : "عادي"}${a.isScheduleUpdate ? ` · ${(a.affectedDays||[]).map(ad => DAY_LABELS[ad.dayOfWeek]).join("، ")}` : ""}</span>${a.isScheduleUpdate && !a.resolvedAt ? `<span class="pill pill-active">نشط</span>` : a.resolvedAt ? `<span>· تم الحل</span>` : ""}</div><div>${a.isScheduleUpdate && !a.resolvedAt ? `<button class="text-link" onclick="resolveAnnouncement('${esc(a.id)}')">حل</button>` : ""}<button class="text-link" onclick="deleteAnnouncement('${esc(a.id)}')">حذف</button></div></article>`).join("") : empty("لا توجد إعلانات.")}</section></div>`;
 }
 
 export function adminTab(id) {
@@ -237,10 +240,15 @@ export async function addAnnouncement(event) {
   const expires = document.querySelector("#announcement-expires").value;
   const priority = document.querySelector("#announcement-priority").value || "normal";
   if (!title || !body) return;
+  const isScheduleUpdate = document.querySelector("#announcement-schedule-toggle")?.checked || false;
+  const scheduleChangeType = isScheduleUpdate ? document.querySelector("#announcement-change-type")?.value : null;
+  const affectedDays = isScheduleUpdate
+    ? Array.from(document.querySelector("#announcement-affected-days")?.selectedOptions || []).map(o => parseInt(o.value))
+    : [];
   try {
     await apiFetch("/announcements", {
       method: "POST",
-      body: JSON.stringify({ title, body, priority, expiresAt: expires || null }),
+      body: JSON.stringify({ title, body, priority, expiresAt: expires || null, isScheduleUpdate, scheduleChangeType, affectedDays }),
     });
     await loadAll();
     document.getElementById("announcement-form")?.reset();
@@ -367,6 +375,52 @@ export async function deleteResource(id) {
     else if (state.page === "khutbah") window.openKhutbah(state.khutbahId);
     else if (state.page === "quarter") window.openQuarter(state.quarterId);
     else window._render();
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+function scheduleAdmin() {
+  const dayCheckboxes = [1,2,3,4,5,6,7].map(d => {
+    const saved = (state.scheduleAvailability || []).find(a => a.dayOfWeek === d);
+    const checked = saved ? saved.isAvailable : false;
+    const isFixed = [1,3,4].includes(d);
+    return `<label class="checkbox-label" style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" class="avail-day" data-day="${d}" ${checked ? "checked" : ""} ${isFixed ? "disabled" : ""}> ${DAY_LABELS[d]}${isFixed ? ' <small class="muted">(ثابت)</small>' : ""}</label>`;
+  }).join("");
+  return `<div class="admin-section"><div class="section-title"><h2>إدارة المواعيد</h2></div><form id="schedule-availability-form" onsubmit="saveScheduleAvailability(event)"><h3>أيام توفر الشيخ</h3><p class="sub">اختر الأيام الإضافية (غير الثابتة) التي يتوفر فيها الشيخ لعقد حصة إضافية.</p>${dayCheckboxes}<button class="primary" type="submit">حفظ</button></form><div style="margin-top:24px"><h3>الملخص</h3><p class="sub">الأيام الثابتة: الاثنين، الأربعاء، الخميس</p></div></div>`;
+}
+
+export async function resolveAnnouncement(id) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حل الإعلان", "هل تريد وضع علامة أن هذا الإعلان قد تم حله؟")) return;
+  try {
+    await apiFetch(`/announcements/${id}/resolve`, { method: "PATCH" });
+    await loadAll();
+    window._render();
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+export async function saveScheduleAvailability(event) {
+  event.preventDefault();
+  if (!isAdmin(state.session)) return;
+  const checkboxes = document.querySelectorAll(".avail-day");
+  const entries = [];
+  checkboxes.forEach(cb => {
+    const dayOfWeek = parseInt(cb.dataset.day);
+    if ([1,3,4].includes(dayOfWeek)) return;
+    entries.push({ dayOfWeek, isAvailable: cb.checked });
+  });
+  try {
+    const result = await apiFetch("/schedule/availability", {
+      method: "PUT",
+      body: JSON.stringify({ entries }),
+    });
+    state.scheduleAvailability = result;
+    await loadAll();
+    toast("تم حفظ أيام التوفر بنجاح.", "success");
+    window._render();
   } catch (err) {
     toast(err.message, "error");
   }

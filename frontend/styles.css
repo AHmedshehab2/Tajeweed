@@ -886,9 +886,10 @@ main { padding: 32px 0 90px; }
 .topic-link.active { background: var(--primary); color: #fff; font-weight: 700; box-shadow: 0 2px 12px rgba(22,160,133,.3); }
 .topic-link small { display: block; color: var(--muted); margin-top: 2px; }
 .topic-link.active small { color: #d8f0ea; }
-.lesson-list { padding: 0; display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+.lesson-list { padding: 0; display: flex; flex-direction: column; }
 .topic-header { padding: 24px 25px; background: var(--tint); border-bottom: 1px solid var(--line); }
 .topic-header h2 { margin: 2px 0 0; font: 700 28px var(--font-display); }
+#curriculum-results { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 16px; }
 .tajweed-resources { margin-bottom: 28px; }
 .tajweed-resources .resources { margin-top: 0; }
 
@@ -1188,7 +1189,7 @@ main { padding: 32px 0 90px; }
 	.mobile-nav button.active { color: var(--primary); font-weight: 700; }
 	main { padding-top: 24px; padding-bottom: 90px; }
 	.resources, .form-grid { grid-template-columns: 1fr; }
-	.lesson-list { grid-template-columns: 1fr; }
+	#curriculum-results { grid-template-columns: 1fr; }
 	.lesson-card { padding: 0; }
 	.lesson-meta .status { display: none; }
 	.audio { padding: 17px; }
@@ -1639,6 +1640,163 @@ main { padding: 32px 0 90px; }
 }
 .completion-toast-icon { font-size: 28px; }
 .completion-toast-text { color: var(--cream); font-size: 14px; font-weight: 600; line-height: 1.5; }
+
+/* ═══ Schedule / Teaching Days ═══ */
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.schedule-day {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 20px;
+  transition: box-shadow .3s ease, border-color .3s ease;
+}
+.schedule-day:hover {
+  box-shadow: var(--shadow-sm), 0 0 16px var(--glow);
+}
+.schedule-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.schedule-day-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.schedule-fixed {
+  border-color: var(--primary);
+  background: rgba(22,160,133,.04);
+}
+.schedule-available {
+  border-color: var(--secondary);
+  background: rgba(46,204,113,.04);
+}
+.schedule-cancelled {
+  border-color: #e74c3c;
+  background: rgba(231,76,60,.05);
+  opacity: .75;
+}
+.schedule-cancelled .schedule-day-header h3 {
+  text-decoration: line-through;
+  color: #e74c3c;
+}
+.schedule-modified {
+  border-color: var(--gold);
+  background: rgba(212,175,55,.05);
+}
+.schedule-additional {
+  border-color: var(--blue);
+  background: rgba(53,128,190,.05);
+}
+.schedule-inactive {
+  opacity: .5;
+}
+.schedule-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.badge-cancelled { background: #e74c3c; color: #fff; }
+.badge-modified { background: var(--gold-dark); color: #fff; }
+.badge-additional { background: var(--blue); color: #fff; }
+.schedule-announcements {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.schedule-announcement-item {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background .2s ease;
+  font-size: 13px;
+}
+.schedule-announcement-item:hover {
+  background: var(--tint);
+}
+.schedule-announcement-item strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.schedule-announcement-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Schedule banner on home page */
+.schedule-banner {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: 16px;
+  padding: 16px 20px;
+  color: #fff;
+  box-shadow: 0 4px 20px var(--glow);
+}
+.schedule-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.schedule-banner-inner .icon {
+  font-size: 28px;
+  color: var(--gold);
+}
+.schedule-banner-inner strong {
+  display: block;
+  font-size: 14px;
+}
+.schedule-banner-inner p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  opacity: .9;
+}
+.schedule-banner-inner .text-link {
+  color: #fff;
+  text-decoration: underline;
+  margin-right: auto;
+  font-size: 13px;
+}
+
+/* Schedule pill in admin */
+.schedule-pill {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+  background: var(--primary);
+  color: #fff;
+}
+.pill-active {
+  background: var(--gold);
+  color: var(--ink);
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
 
 /* Mobile mini-player adjustments */
 @media (max-width: 768px) {

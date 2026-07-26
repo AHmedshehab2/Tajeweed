@@ -1,5 +1,5 @@
 import { TODAY, HOME_PHOTO, API_BASE, esc, fmt, mediaUrl, isAdmin, formatTime, progressBar, empty, crumbs, adminTable, currentTheme } from "./utils.js";
-import { data, state, progressCache, allLessons, orderedChapters, findLesson, findQuarter, resolveLastLesson, resolveLastQuarter, lessonStatus, completedQuarters, chapterPercent, curriculumPercent, totalQuarters, quranPercent, audioPlayer, resourceLink, lessonRows, chapterOptions, getRecentUploads, activityHeatmap } from "./state.js";
+import { data, state, progressCache, allLessons, orderedChapters, findLesson, findQuarter, resolveLastLesson, resolveLastQuarter, lessonStatus, completedQuarters, chapterPercent, curriculumPercent, totalQuarters, quranPercent, audioPlayer, resourceLink, lessonRows, chapterOptions, getRecentUploads, activityHeatmap, DAY_LABELS, FIXED_DAYS } from "./state.js";
 import { admin } from "./admin.js";
 import { syncAudioUI, startAudioUIListener, stopAudioUIListener, startAudioEndListener, isMiniHidden, isMiniExpanded, isMiniAnimating } from "./audio.js";
 import { getState as getAudioState } from "./audio-player.js";
@@ -9,7 +9,7 @@ export function render() {
   document.documentElement.dir = "rtl";
   document.title = "مدرسة القرآن";
   document.querySelector("#app").innerHTML = state.session
-    ? `${nav()}<main>${({ home, curriculum, lesson, quran, quarter, khutbahs, khutbah, profile, admin, search }[state.page] || home)()}</main>${mobileNav()}${miniPlayer()}`
+    ? `${nav()}<main>${({ home, curriculum, lesson, quran, quarter, khutbahs, khutbah, profile, admin, search, schedule }[state.page] || home)()}</main>${mobileNav()}${miniPlayer()}`
     : state.authView === "register"
       ? register()
       : state.authView === "forgot-password"
@@ -80,6 +80,25 @@ function socialButtons() {
     : "";
   return `<div class="auth-divider"><span>أو</span></div>${googleBtn}${facebookBtn}`;
 }
+function schedule() {
+  const days = state.scheduleDays && state.scheduleDays.length ? state.scheduleDays : [];
+  return `<div class="shell"><div class="page-heading"><div><span class="eyebrow">المواعيد الأسبوعية</span><h1 class="headline">جدول الحصص</h1><p class="sub">الأيام الثابتة: الاثنين، الأربعاء، الخميس.</p></div></div><section class="schedule-grid">${days.map(d => {
+    let cls = "schedule-day";
+    let badge = "";
+    let announcementsHtml = "";
+    if (d.status === "fixed") cls += " schedule-fixed";
+    else if (d.status === "available") cls += " schedule-available";
+    else if (d.status === "cancelled") { cls += " schedule-cancelled"; badge = '<span class="schedule-badge badge-cancelled">ملغى</span>'; }
+    else if (d.status === "modified") { cls += " schedule-modified"; badge = '<span class="schedule-badge badge-modified">تم التعديل</span>'; }
+    else if (d.status === "additional") { cls += " schedule-additional"; badge = '<span class="schedule-badge badge-additional">إضافية</span>'; }
+    else cls += " schedule-inactive";
+
+    if (d.announcements && d.announcements.length) {
+      announcementsHtml = `<div class="schedule-announcements">${d.announcements.map(a => `<div class="schedule-announcement-item" onclick="go('schedule')" title="${esc(a.title)}"><strong>${esc(a.title)}</strong><p>${esc(a.body.slice(0, 80))}${a.body.length > 80 ? "..." : ""}</p></div>`).join("")}</div>`;
+    }
+    return `<div class="${cls}" data-day="${d.dayOfWeek}"><div class="schedule-day-header"><h3>${d.label}</h3>${badge}</div>${announcementsHtml}</div>`;
+  }).join("")}</section></div>`;
+}
 function login() {
   return `<main class="login"><button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" aria-label="تبديل المظهر">${currentTheme() === "dark" ? '<span class="icon">light_mode</span>' : '<span class="icon">dark_mode</span>'}</button><section class="card login-card"><div class="brand"><img src="logo.png" alt="مدرسة القرآن" class="brand-logo"></div><h1 class="headline">مرحباً بعودتك</h1><p class="sub">سجل دخولك لمتابعة رحلة تعلّم التجويد.</p><form onsubmit="signIn(event)"><div class="field"><label for="email">البريد الإلكتروني</label><input id="email" required type="email" placeholder="example@email.com"></div>        <div class="field"><label for="password">كلمة المرور</label><div class="password-wrap"><input id="password" required type="password" placeholder="••••••••"><button class="password-toggle" type="button" onclick="togglePasswordVisibility(this)" aria-label="إظهار كلمة المرور" tabindex="-1"><span class="icon icon-on">visibility</span><span class="icon icon-off" style="display:none">visibility_off</span></button></div></div><p><button class="text-link" onclick="showForgotPasswordView()" type="button">نسيت كلمة المرور؟</button></p><button class="primary" type="submit">تسجيل الدخول</button></form>${socialButtons()}<p class="compact">ليس لديك حساب؟ <button class="text-link" onclick="showRegister()">إنشاء حساب جديد</button></p></section></main>`;
 }
@@ -107,7 +126,22 @@ function home() {
     : `<article class="resume-card"><div class="resume-info"><span class="eyebrow">ابدأ رحلتك</span><h3>منهج التجويد</h3><p>استكشف الدروس وابدأ من الباب الأول.</p></div><button class="open" onclick="go('curriculum')">عرض المنهج</button></article>`;
   const totalQuartersCount = data.hizbs.reduce((sum, h) => sum + (h.quarters ? h.quarters.length : 0), 0);
   const completedQuartersCount = completedQuarters().length;
-  return `<div class="shell"><section class="hero-section"><img class="hero-photo" src="${esc(HOME_PHOTO)}" alt="صورة الشيخ" loading="lazy"><div class="hero-text"><h1 class="hero-ayah">إِنَّ الَّذِينَ يَتْلُونَ كِتَابَ اللَّهِ وَأَقَامُوا الصَّلَاةَ وَأَنفَقُوا مِمَّا رَزَقْنَاهُمْ سِرًّا وَعَلَانِيَةً يَرْجُونَ تِجَارَةً لَّن تَبُورَ</h1><p class="hero-sub">كل ما تحتاجه لمتابعة دروسك ومراجعة تلاوتك، في مكان واحد.</p><div class="hero-cta"><button class="primary" onclick="go('curriculum')">ابدأ رحلتك الآن</button><button class="btn-outline" onclick="go('quran')">استكشف القرآن</button></div></div><div class="hero-progress"><article class="hero-stat"><span class="eyebrow">المنهج</span><h3>${completedLessons} / ${totalLessons}</h3><p>درس مكتمل · ${lessonPercent}%</p></article><article class="hero-stat"><span class="eyebrow">القرآن</span><h3>${completedQuartersCount} / ${totalQuartersCount}</h3><p>ربع مكتمل · ${totalQuartersCount ? Math.round((completedQuartersCount / totalQuartersCount) * 100) : 0}%</p></article></div></section><section style="margin-top:28px">${resumeCard}</section><section class="announcement-stack">${announcements.map((item) => `<article class="announcement ${item.priority === "important" ? "important" : ""}"><span class="announce-tag">${item.priority === "important" ? "مهم" : "تذكير"} · ${item.target === "all" ? "لكل الطلاب" : esc(item.target)}</span><strong>${esc(item.title)}:</strong> ${esc(item.body)}</article>`).join("")}</section></div>`;
+
+  const scheduleAnnouncements = announcements.filter(a => a.isScheduleUpdate && !a.resolvedAt);
+  const scheduleBanner = scheduleAnnouncements.length
+    ? `<section class="schedule-banner"><div class="schedule-banner-inner"><span class="icon">calendar_month</span><div><strong>تحديثات الجدول</strong><p>${scheduleAnnouncements.map(a => {
+        const days = (a.affectedDays||[]).map(ad => `<button class="text-link" onclick="openScheduleDay(${ad.dayOfWeek})">${DAY_LABELS[ad.dayOfWeek]}</button>`).join("، ");
+        const typeLabel = a.scheduleChangeType === "CANCELLED" ? "ملغى" : a.scheduleChangeType === "ADDITIONAL_CLASS" ? "إضافية" : "معدّل";
+        return `<span>${esc(a.title)} (${typeLabel}) — ${days}</span>`;
+      }).join("؛ ")}</p></div><button class="text-link" onclick="go('schedule')">عرض الجدول</button></div></section>`
+    : "";
+
+  return `<div class="shell">${scheduleBanner}<section class="hero-section"><img class="hero-photo" src="${esc(HOME_PHOTO)}" alt="صورة الشيخ" loading="lazy"><div class="hero-text"><h1 class="hero-ayah">إِنَّ الَّذِينَ يَتْلُونَ كِتَابَ اللَّهِ وَأَقَامُوا الصَّلَاةَ وَأَنفَقُوا مِمَّا رَزَقْنَاهُمْ سِرًّا وَعَلَانِيَةً يَرْجُونَ تِجَارَةً لَّن تَبُورَ</h1><p class="hero-sub">كل ما تحتاجه لمتابعة دروسك ومراجعة تلاوتك، في مكان واحد.</p><div class="hero-cta"><button class="primary" onclick="go('curriculum')">ابدأ رحلتك الآن</button><button class="btn-outline" onclick="go('quran')">استكشف القرآن</button></div></div><div class="hero-progress"><article class="hero-stat"><span class="eyebrow">المنهج</span><h3>${completedLessons} / ${totalLessons}</h3><p>درس مكتمل · ${lessonPercent}%</p></article><article class="hero-stat"><span class="eyebrow">القرآن</span><h3>${completedQuartersCount} / ${totalQuartersCount}</h3><p>ربع مكتمل · ${totalQuartersCount ? Math.round((completedQuartersCount / totalQuartersCount) * 100) : 0}%</p></article></div></section><section style="margin-top:28px">${resumeCard}</section><section class="announcement-stack">${announcements.map((item) => {
+    const daysHtml = item.isScheduleUpdate && (item.affectedDays||[]).length
+      ? `<span> · أيام: ${item.affectedDays.map(ad => `<button class="text-link" onclick="openScheduleDay(${ad.dayOfWeek})">${DAY_LABELS[ad.dayOfWeek]}</button>`).join("، ")}</span>`
+      : "";
+    return `<article class="announcement ${item.priority === "important" ? "important" : ""}"><span class="announce-tag">${item.priority === "important" ? "مهم" : "تذكير"} · ${item.target === "all" ? "لكل الطلاب" : esc(item.target)}${item.isScheduleUpdate ? " · تحديث موعد" : ""}</span><strong>${esc(item.title)}:</strong> ${esc(item.body)}${daysHtml}</article>`;
+  }).join("")}</section></div>`;
 }
 function tajweedResources() {
   const resources = data.resources || [];
@@ -139,7 +173,7 @@ function lesson() {
     : "";
   return `<div class="shell lesson-page">${crumbs(["المنهج", lessonObj.chapter.name, lessonObj.title])}${boardHero}<h1>${esc(lessonObj.title)}</h1><p class="sub">${esc(lessonObj.description)}</p><section class="card objectives"><div class="section-title"><h3>أهداف الدرس</h3>${
     lessonStatus(lessonObj.id) === "completed"
-      ? `<button class="open" disabled aria-disabled="true"><span class="icon">check_circle</span> مكتمل</button>`
+      ? `<button class="open" onclick="uncompleteLesson('${esc(lessonObj.id)}')"><span class="icon">check_circle</span> مكتمل — اضغط للإلغاء</button>`
       : `<button class="open" onclick="advanceLesson('${esc(lessonObj.id)}')">${lessonStatus(lessonObj.id) === "in-progress" ? "تحديد كمكتمل" : "بدء الدرس"}</button>`
   }</div><ul>${lessonObj.objectives.map((objective) => `<li>${esc(objective)}</li>`).join("")}</ul></section><section class="card recording-section"><div class="section-title"><h3>تسجيلات الدرس</h3></div>${
     recordings.length

@@ -3,9 +3,9 @@ import { applyTheme, toggleTheme, showConfirm, showPrompt, openImageOverlay, toa
 import { state } from "./modules/state.js";
 import { apiFetch, loadAll, signIn, signUp, logout, setSupabaseConfig, setSupabaseClient, supabaseClient, requestPasswordReset, updatePassword } from "./modules/api.js";
 import { playRecording, cycleSpeed, miniPlayPause, miniCycleSpeed, miniPrevLesson, miniNextLesson, miniClose, miniReopen, miniExpand, miniCollapse, cancelCountdown, onSeekTrackPointerDown } from "./modules/audio.js";
-import { go, openLesson, openQuarter, openKhutbah, selectChapter, filterCurriculum, filterQuran, filterKhutbahs, filterGlobal, advanceLesson, toggleQuarter, refreshUploadTargets, hashToState } from "./modules/routing.js";
+import { go, openLesson, openQuarter, openKhutbah, selectChapter, filterCurriculum, filterQuran, filterKhutbahs, filterGlobal, advanceLesson, uncompleteLesson, toggleQuarter, refreshUploadTargets, hashToState, openScheduleDay } from "./modules/routing.js";
 import { render } from "./modules/pages.js";
-import { adminTab, newChapter, editChapter, cancelEditors, saveChapter, deleteChapter, newLesson, editLesson, saveLesson, uploadResource, addAnnouncement, deleteAnnouncement, deleteKhutbah, addKhutbah, addHizb, deleteHizb, addQuarter, deleteQuarter, deleteRecording, deleteResource } from "./modules/admin.js";
+import { adminTab, newChapter, editChapter, cancelEditors, saveChapter, deleteChapter, newLesson, editLesson, saveLesson, uploadResource, addAnnouncement, deleteAnnouncement, deleteKhutbah, addKhutbah, addHizb, deleteHizb, addQuarter, deleteQuarter, deleteRecording, deleteResource, resolveAnnouncement, saveScheduleAvailability } from "./modules/admin.js";
 
 window._render = render;
 
@@ -19,8 +19,17 @@ window.filterQuran = filterQuran;
 window.filterKhutbahs = filterKhutbahs;
 window.filterGlobal = filterGlobal;
 window.advanceLesson = advanceLesson;
+window.uncompleteLesson = uncompleteLesson;
 window.toggleQuarter = toggleQuarter;
 window.refreshUploadTargets = refreshUploadTargets;
+window.openScheduleDay = openScheduleDay;
+window.resolveAnnouncement = resolveAnnouncement;
+window.saveScheduleAvailability = saveScheduleAvailability;
+window.toggleScheduleFields = () => {
+  const toggle = document.getElementById("announcement-schedule-toggle");
+  const fields = document.getElementById("announcement-schedule-fields");
+  if (fields) fields.style.display = toggle?.checked ? "" : "none";
+};
 window.toggleTheme = toggleTheme;
 window.render = render;
 window.signIn = signIn;

@@ -146,7 +146,19 @@ router.post('/supabase', requireSameOrigin, async (req, res) => {
     }
 
     user = await promoteVerifiedBootstrapUser(user, auth.userClaims);
-    res.cookie(COOKIE_NAME, token, cookieOptions()).json({ user: publicUser(user), provider: 'supabase' });
+
+    // Fetch the full user record (including tokenVersion) so sign() embeds the
+    // correct version, enabling server-side revocation the same way local JWTs work.
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, name: true, email: true, role: true, avatar: true, tokenVersion: true },
+    });
+    if (!fullUser) return res.status(401).json({ error: 'جلسة غير صالحة' });
+
+    // Issue our own app JWT — do NOT store the raw Supabase access_token.
+    // Supabase tokens expire in ~1 hour; our JWT uses the standard 30-day window
+    // and participates in the tokenVersion revocation scheme.
+    res.cookie(COOKIE_NAME, sign(fullUser), cookieOptions()).json({ user: publicUser(fullUser), provider: 'supabase' });
   } catch (_) {
     res.status(401).json({ error: 'جلسة غير صالحة' });
   }
@@ -199,23 +211,29 @@ router.post('/login', requireSameOrigin, loginLimiter, async (req, res) => {
   res.cookie(COOKIE_NAME, sign(user), cookieOptions()).json({ user: publicUser(user) });
 });
 
+// §2.6 fix: always load the current role from DB so demotions/promotions apply immediately,
+// even for legacy tokens that don't carry a tokenVersion claim.
 router.get('/me', (req, res) => {
   const token = req.cookies?.token;
   if (!token) return res.json({ user: null });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (payload.id && payload.tokenVersion !== undefined) {
-      return prisma.user.findUnique({
-        where: { id: payload.id },
-        select: { id: true, name: true, email: true, role: true, avatar: true, tokenVersion: true },
+    if (!payload.id) return res.json({ user: null });
+
+    return prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { id: true, name: true, email: true, role: true, avatar: true, tokenVersion: true },
+    })
+      .then(u => {
+        if (!u) return res.json({ user: null });
+        // Enforce revocation check only when the token carries a tokenVersion.
+        // Legacy tokens (older OAuth) don't have it; still accept them if the user exists.
+        if (payload.tokenVersion !== undefined && u.tokenVersion !== payload.tokenVersion) {
+          return res.json({ user: null });
+        }
+        res.json({ user: publicUser(u) });
       })
-        .then(u => {
-          if (!u || u.tokenVersion !== payload.tokenVersion) return res.json({ user: null });
-          res.json({ user: publicUser(u) });
-        })
-        .catch(() => res.json({ user: null }));
-    }
-    res.json({ user: publicUser(payload) });
+      .catch(() => res.json({ user: null }));
   } catch (_) {
     res.json({ user: null });
   }

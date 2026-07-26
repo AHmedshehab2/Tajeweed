@@ -61,6 +61,16 @@ export async function loadAll() {
     activity: progress.activity,
   });
   syncStateIds();
+  await loadSchedule().catch(() => {});
+}
+
+export async function loadSchedule() {
+  const [scheduleRes, availability] = await Promise.all([
+    apiFetch("/schedule"),
+    apiFetch("/schedule/availability"),
+  ]);
+  state.scheduleDays = scheduleRes.days;
+  state.scheduleAvailability = availability;
 }
 
 export function syncStateIds() {
