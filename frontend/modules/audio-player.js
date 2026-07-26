@@ -47,7 +47,7 @@ export function getState() {
     recordingTitle: currentRecording?.title || "",
     recordingUrl: currentRecording?.audioUrl || "",
     currentTime: a.currentTime || 0,
-    duration: (Number.isFinite(a.duration) ? a.duration : 0),
+    duration: Number.isFinite(a.duration) ? a.duration : 0,
     isPlaying: !a.paused && !a.ended,
     playbackRate: a.playbackRate,
     paused: a.paused,
@@ -56,12 +56,16 @@ export function getState() {
 
 export function onUpdate(fn) {
   updateCallback = fn;
-  return () => { if (updateCallback === fn) updateCallback = null; };
+  return () => {
+    if (updateCallback === fn) updateCallback = null;
+  };
 }
 
 export function onEnded(fn) {
   endedCallback = fn;
-  return () => { if (endedCallback === fn) endedCallback = null; };
+  return () => {
+    if (endedCallback === fn) endedCallback = null;
+  };
 }
 
 export function play(recording) {

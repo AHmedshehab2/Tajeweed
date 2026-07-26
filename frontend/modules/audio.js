@@ -1,7 +1,12 @@
 import { TODAY, mediaUrl, formatTime, esc } from "./utils.js";
 import { progressCache, allLessons, data, findLessonForRecording, nextLesson, lessonStatus, findLesson } from "./state.js";
-import { apiFetch } from "./api.js";
+import { apiPost } from "./api.js";
 import { play as apPlay, pause as apPause, seekPercent as apSeekPercent, setSpeed as apSetSpeed, getState as apState, onUpdate as apOnUpdate, onEnded as apOnEnded } from "./audio-player.js";
+
+// Centralized DOM getters
+const getMiniPlayerEl = () => document.getElementById("mini-player");
+const getMiniPlayerFabEl = () => document.getElementById("mini-player-fab");
+const getRichAudioContainer = (recordingId) => document.querySelector(`.rich-audio[data-recording-id="${recordingId}"]`);
 
 export function parseDuration(str) {
   if (!str) return 0;
@@ -11,7 +16,6 @@ export function parseDuration(str) {
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   return 0;
 }
-
 
 export function resetPlayButtons(except) {
   document.querySelectorAll(".rich-audio .play").forEach((btn) => {
@@ -25,15 +29,16 @@ export function cycleSpeed(button) {
   const idx = (labels.indexOf(button.textContent) + 1) % labels.length;
   button.textContent = labels[idx];
   const container = button.closest(".rich-audio");
-  if (container?.dataset.recordingId === apState().currentRecordingId)
+  if (container?.dataset.recordingId === apState().currentRecordingId) {
     apSetSpeed(rates[idx]);
+  }
 }
 
 function syncSeekVisual(container, pct) {
   const fill = container.querySelector(".seek-track-fill");
   const thumb = container.querySelector(".seek-track-thumb");
-  if (fill) fill.style.width = pct + "%";
-  if (thumb) thumb.style.right = pct + "%";
+  if (fill) fill.style.width = `${pct}%`;
+  if (thumb) thumb.style.right = `${pct}%`;
 }
 
 function doSeek(clientX, track) {
@@ -96,8 +101,9 @@ export function updateAudioSeek(container, reset = false) {
 
 export function audioDuration(container) {
   const gs = apState();
-  if (gs.currentRecordingId === container?.dataset.recordingId && gs.duration)
+  if (gs.currentRecordingId === container?.dataset.recordingId && gs.duration) {
     return gs.duration;
+  }
   const label = container?.querySelector(".seek-row span:last-child")?.textContent;
   return parseDuration(label) || 0;
 }
@@ -109,12 +115,11 @@ function startLessonIfNeeded(lessonId) {
   const status = lessonStatus(lessonId);
   if (status !== "not-started") return Promise.resolve();
   if (_pendingStarts.has(lessonId)) return _pendingStarts.get(lessonId);
+
   progressCache.lessons[lessonId] = "in-progress";
   window._render();
-  const pending = apiFetch(`/progress/lessons/${lessonId}`, {
-    method: "POST",
-    body: JSON.stringify({ state: "in-progress" }),
-  })
+
+  const pending = apiPost(`/progress/lessons/${lessonId}`, { state: "in-progress" })
     .then(({ status: newStatus }) => {
       progressCache.lessons[lessonId] = newStatus;
     })
@@ -136,11 +141,9 @@ async function completeLessonIfNeeded(lessonId) {
   await (_pendingStarts.get(lessonId) || Promise.resolve());
   const status = lessonStatus(lessonId);
   if (status !== "in-progress") return;
+
   try {
-    const { status: newStatus } = await apiFetch(`/progress/lessons/${lessonId}`, {
-      method: "POST",
-      body: JSON.stringify({ state: "completed" }),
-    });
+    const { status: newStatus } = await apiPost(`/progress/lessons/${lessonId}`, { state: "completed" });
     progressCache.lessons[lessonId] = newStatus;
     window._render();
     if (newStatus === "completed") showCompletionCountdown(lessonId);
@@ -150,13 +153,21 @@ async function completeLessonIfNeeded(lessonId) {
 let _countdownTimer = null;
 let _countdownEl = null;
 
+function buildCompletionToastHTML() {
+  return `<div class="completion-toast-inner"><div class="completion-toast-icon"><span class="icon">celebration</span></div><div class="completion-toast-text">تهانينا!<br>لقد أكملت هذا الباب.</div></div>`;
+}
+
+function buildCountdownHTML(count, nextLessonObj) {
+  return `<div class="countdown-inner"><div class="countdown-check"><span class="icon">check_circle</span> تم إكمال الدرس</div><div class="countdown-next-title">الدرس التالي: ${esc(nextLessonObj.title)}</div><div class="countdown-timer">يبدأ خلال <span class="countdown-number">${count}</span></div><button class="countdown-cancel" onclick="cancelCountdown()">إلغاء</button></div>`;
+}
+
 function showCompletionCountdown(completedLessonId) {
   clearCountdown();
   const next = nextLesson(completedLessonId);
   if (!next) {
     const el = document.createElement("div");
     el.className = "completion-toast";
-    el.innerHTML = `<div class="completion-toast-inner"><div class="completion-toast-icon"><span class="icon">celebration</span></div><div class="completion-toast-text">تهانينا!<br>لقد أكملت هذا الباب.</div></div>`;
+    el.innerHTML = buildCompletionToastHTML();
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 4000);
     return;
@@ -166,6 +177,7 @@ function showCompletionCountdown(completedLessonId) {
   _countdownEl.className = "completion-countdown";
   _countdownEl.innerHTML = buildCountdownHTML(count, next);
   document.body.appendChild(_countdownEl);
+
   _countdownTimer = setInterval(() => {
     count--;
     if (count <= 0) {
@@ -174,20 +186,21 @@ function showCompletionCountdown(completedLessonId) {
       return;
     }
     if (_countdownEl) {
-      _countdownEl.querySelector(".countdown-number").textContent = count;
+      const numEl = _countdownEl.querySelector(".countdown-number");
+      if (numEl) numEl.textContent = count;
     }
   }, 1000);
 }
 
-function buildCountdownHTML(count, nextLessonObj) {
-  return `<div class="countdown-inner"><div class="countdown-check"><span class="icon">check_circle</span> تم إكمال الدرس</div><div class="countdown-next-title">الدرس التالي: ${esc(nextLessonObj.title)}</div><div class="countdown-timer">يبدأ خلال <span class="countdown-number">${count}</span></div><button class="countdown-cancel" onclick="cancelCountdown()">إلغاء</button></div>`;
-}
-
-
-
 function clearCountdown() {
-  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
-  if (_countdownEl) { _countdownEl.remove(); _countdownEl = null; }
+  if (_countdownTimer) {
+    clearInterval(_countdownTimer);
+    _countdownTimer = null;
+  }
+  if (_countdownEl) {
+    _countdownEl.remove();
+    _countdownEl = null;
+  }
 }
 
 export function cancelCountdown() {
@@ -199,6 +212,7 @@ function openLessonAutoPlay(lessonId) {
   if (!lesson || !lesson.recordings.length) return;
   const firstRec = lesson.recordings.find((r) => r.audioUrl) || lesson.recordings[0];
   if (!firstRec?.audioUrl) return;
+
   import("./routing.js").then((m) => {
     m.openLesson(lessonId);
     setTimeout(() => {
@@ -237,10 +251,7 @@ export function playRecording(button, id) {
   apPlay(item);
   button.innerHTML = '<span class="icon">pause</span>';
 
-  apiFetch("/progress/activity", {
-    method: "POST",
-    body: JSON.stringify({ refId: id, title: item.title, kind: "استماع" }),
-  })
+  apiPost("/progress/activity", { refId: id, title: item.title, kind: "استماع" })
     .then(() => {
       progressCache.activity = [
         { id, title: item.title, kind: "استماع", date: TODAY },
@@ -252,15 +263,16 @@ export function playRecording(button, id) {
 
 export function syncAudioUI() {
   const gs = apState();
+  const mini = getMiniPlayerEl();
+  const fab = getMiniPlayerFabEl();
+
   if (!gs.currentRecordingId) {
-    const mini = document.getElementById("mini-player");
-    const fab = document.getElementById("mini-player-fab");
     if (mini) mini.style.display = "none";
     if (fab) fab.style.display = "none";
     return;
   }
 
-  const container = document.querySelector(`.rich-audio[data-recording-id="${gs.currentRecordingId}"]`);
+  const container = getRichAudioContainer(gs.currentRecordingId);
   if (container) {
     const playBtn = container.querySelector(".play");
     const seek = container.querySelector(".seek-track");
@@ -280,11 +292,9 @@ export function syncAudioUI() {
     }
   }
 
-  const mini = document.getElementById("mini-player");
   if (mini) {
     const isHidden = mini.dataset.hidden === "1";
     mini.style.display = isHidden ? "none" : "";
-    const fab = document.getElementById("mini-player-fab");
     if (fab) fab.style.display = isHidden ? "" : "none";
 
     const playBtn = mini.querySelector(".mp-play");
@@ -300,7 +310,7 @@ export function syncAudioUI() {
     }
     if (elapsedEl) elapsedEl.textContent = formatTime(gs.currentTime);
     if (durEl && gs.duration > 0) durEl.textContent = formatTime(gs.duration);
-    if (speedBtn) speedBtn.textContent = gs.playbackRate + "×";
+    if (speedBtn) speedBtn.textContent = `${gs.playbackRate}×`;
     if (titleEl && gs.recordingTitle) titleEl.textContent = gs.recordingTitle;
   }
 }
@@ -332,7 +342,11 @@ export function miniPrevLesson() {
   if (!gs.currentRecordingId) return;
   const parentLesson = findLessonForRecording(gs.currentRecordingId);
   if (!parentLesson) return;
-  const prev = (() => { const list = allLessons(); const i = list.findIndex((l) => l.id === parentLesson.id); return i > 0 ? list[i - 1] : null; })();
+  const prev = (() => {
+    const list = allLessons();
+    const i = list.findIndex((l) => l.id === parentLesson.id);
+    return i > 0 ? list[i - 1] : null;
+  })();
   if (!prev) return;
   import("./routing.js").then((m) => {
     m.openLesson(prev.id);
@@ -368,9 +382,13 @@ export function miniNextLesson() {
 export function miniClose() {
   _miniHidden = true;
   _miniExpanded = false;
-  const mini = document.getElementById("mini-player");
-  const fab = document.getElementById("mini-player-fab");
-  if (mini) { mini.dataset.hidden = "1"; mini.classList.remove("expanded"); mini.style.display = "none"; }
+  const mini = getMiniPlayerEl();
+  const fab = getMiniPlayerFabEl();
+  if (mini) {
+    mini.dataset.hidden = "1";
+    mini.classList.remove("expanded");
+    mini.style.display = "none";
+  }
   if (fab) fab.style.display = "";
 }
 
@@ -385,7 +403,7 @@ export function miniExpand() {
     miniCollapse();
   } else {
     _miniExpanded = true;
-    const mini = document.getElementById("mini-player");
+    const mini = getMiniPlayerEl();
     if (mini) {
       mini.classList.add("expanded");
       const btn = mini.querySelector(".mp-expand-icon");
@@ -396,7 +414,7 @@ export function miniExpand() {
 
 export function miniCollapse() {
   _miniExpanded = false;
-  const mini = document.getElementById("mini-player");
+  const mini = getMiniPlayerEl();
   if (mini) {
     mini.classList.remove("expanded");
     const btn = mini.querySelector(".mp-expand-icon");
@@ -411,7 +429,6 @@ function findRecordingById(id) {
     .concat(data.khutbahs.flatMap((k) => k.recordings || []))
     .find((item) => item.id === id);
   if (rec) return rec;
-  // Legacy khutbahs may store audioUrl on the document itself
   const khutbah = data.khutbahs.find((k) => k.id === id && k.audioUrl);
   if (!khutbah) return null;
   return {
