@@ -1,3 +1,6 @@
+const request = require('supertest');
+const app = require('../server');
+const prisma = require('../prisma');
 const { resolveDay, formatTime12 } = require('../services/schedule.service');
 const { DAY_TYPES, LESSON_TAGS } = require('../constants');
 
@@ -82,6 +85,93 @@ describe('Schedule Service Unit Tests', () => {
       const dayAfter = resolveDay(date, fixedTemplate, null);
       expect(dayAfter.available).toBe(true);
       expect(dayAfter.reason).toBeNull();
+    });
+  });
+});
+
+describe('Schedule date validation (API)', () => {
+  let studentCookie;
+  let adminCookie;
+
+  beforeAll(async () => {
+    const student = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'student@example.com', password: 'test1234' });
+    studentCookie = student.headers['set-cookie'];
+
+    const admin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'admin1234' });
+    adminCookie = admin.headers['set-cookie'];
+  });
+
+  afterAll(async () => {
+    await prisma.scheduleException.deleteMany({});
+  });
+
+  describe('GET /api/schedule', () => {
+    it('returns 200 for a valid weekStart', async () => {
+      const res = await request(app)
+        .get('/api/schedule?weekStart=2026-07-27')
+        .set('Cookie', studentCookie);
+      expect(res.status).toBe(200);
+      expect(res.body.days).toHaveLength(7);
+    });
+
+    it('returns 400 for a malformed weekStart instead of 500', async () => {
+      const res = await request(app)
+        .get('/api/schedule?weekStart=not-a-date')
+        .set('Cookie', studentCookie);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for an impossible date (2026-13-45)', async () => {
+      const res = await request(app)
+        .get('/api/schedule?weekStart=2026-13-45')
+        .set('Cookie', studentCookie);
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/schedule/exceptions', () => {
+    it('returns 200 for valid from/to range', async () => {
+      const res = await request(app)
+        .get('/api/schedule/exceptions?from=2026-07-01&to=2026-07-31')
+        .set('Cookie', adminCookie);
+      expect(res.status).toBe(200);
+    });
+
+    it('returns 400 for a malformed from date', async () => {
+      const res = await request(app)
+        .get('/api/schedule/exceptions?from=garbage')
+        .set('Cookie', adminCookie);
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for an impossible to date (2026-02-30)', async () => {
+      const res = await request(app)
+        .get('/api/schedule/exceptions?to=2026-02-30')
+        .set('Cookie', adminCookie);
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/schedule/exceptions', () => {
+    it('returns 400 for a malformed date instead of 500', async () => {
+      const res = await request(app)
+        .post('/api/schedule/exceptions')
+        .set('Cookie', adminCookie)
+        .send({ date: 'garbage', isCancelled: true });
+      expect(res.status).toBe(400);
+    });
+
+    it('creates an exception with a valid date', async () => {
+      const res = await request(app)
+        .post('/api/schedule/exceptions')
+        .set('Cookie', adminCookie)
+        .send({ date: '2026-09-01', isCancelled: true, note: 'عطلة' });
+      expect(res.status).toBe(201);
+      expect(res.body.date).toBe('2026-09-01');
     });
   });
 });

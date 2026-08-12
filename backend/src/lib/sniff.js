@@ -26,7 +26,8 @@ function detectMP4(buf) {
 
 function sniffBuffer(buf) {
   if (detectMP4(buf)) return 'mp4';
-  if (bytesMatch(buf, [0x52, 0x49, 0x46, 0x46]) && buf.length >= 12) {
+  if (buf.length >= 4 && bytesMatch(buf, [0x1A, 0x45, 0xDF, 0xA3])) return 'webm';
+  if (buf.length >= 4 && bytesMatch(buf, [0x52, 0x49, 0x46, 0x46]) && buf.length >= 12) {
     if (buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'webp';
     if (buf[8] === 0x57 && buf[9] === 0x41 && buf[10] === 0x56 && buf[11] === 0x45) return 'wav';
   }
@@ -57,7 +58,11 @@ const DECLARED_MAP = {
   wav:  'recording',
   ogg:  'recording',
   flac: 'recording',
-  mp4:  'recording',
+  mp4:  ['recording', 'video'],
+  webm: 'video',
+  avi:  'video',
+  mov:  'video',
+  mkv:  'video',
   pdf:  ['pdf', 'attachment'],
   jpeg: 'image',
   png:  'image',
@@ -80,7 +85,11 @@ const EXT_MAP = {
   wav:  '.wav',
   ogg:  '.ogg',
   flac: '.flac',
-  mp4:  '.m4a',
+  mp4:  '.mp4',
+  webm: '.webm',
+  avi:  '.avi',
+  mov:  '.mov',
+  mkv:  '.mkv',
   pdf:  '.pdf',
   jpeg: '.jpg',
   png:  '.png',
@@ -96,8 +105,31 @@ function extensionForSniffed(sniffed) {
 }
 
 function extensionForDeclared(declared) {
-  const map = { recording: '.mp3', pdf: '.pdf', image: '.jpg', attachment: '.bin' };
+  const map = { recording: '.mp3', video: '.mp4', pdf: '.pdf', image: '.jpg', attachment: '.bin' };
   return map[declared] || '.bin';
 }
 
-module.exports = { sniffType, sniffBuffer, matchesDeclaredType, extensionForSniffed, extensionForDeclared };
+// Serve-time allowlist: only these extensions are served inline (audio/video/image/PDF).
+// Everything else (HTML, SVG, JS, office documents, unknown) is forced to
+// application/octet-stream so the browser downloads it instead of rendering it.
+// Content is validated by magic-byte sniffing at upload time; this whitelist
+// only decides how already-uploaded files are presented to browsers.
+const SAFE_SERVE_EXTENSIONS = new Set([
+  '.mp3', '.aac', '.wav', '.ogg', '.flac', '.m4a',
+  '.mp4', '.webm', '.avi', '.mov', '.mkv',
+  '.jpg', '.jpeg', '.png', '.webp', '.gif',
+  '.pdf',
+]);
+
+function isSafeServeExtension(ext) {
+  return SAFE_SERVE_EXTENSIONS.has(String(ext || '').trim().toLowerCase());
+}
+
+module.exports = {
+  sniffType,
+  sniffBuffer,
+  matchesDeclaredType,
+  extensionForSniffed,
+  extensionForDeclared,
+  isSafeServeExtension,
+};

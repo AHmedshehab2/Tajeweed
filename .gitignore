@@ -9,3 +9,9 @@ backend/uploads/*
 .DS_Store
 Thumbs.db
 .DEPLOY.md
+*.log
+*.err
+AGENTS.md
+ENGINEERING_PRINCIPLES.md
+.cursor/
+render.yaml

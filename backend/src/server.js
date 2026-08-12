@@ -4,9 +4,13 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const passport = require('passport');
+const prisma = require('./prisma');
 const errorHandler = require('./middleware/errorHandler');
 const { isSupabaseConfigured } = require('./lib/supabase');
 const { requireSameOrigin } = require('./middleware/auth');
+const { isSafeServeExtension } = require('./lib/sniff');
+const { getStorageConfigurationError } = require('./services/r2.service');
+const asyncHandler = require('./lib/asyncHandler');
 
 // Initialize Passport strategies (Google/Facebook OAuth)
 require('./lib/passport');
@@ -22,7 +26,9 @@ const scheduleRoutes = require('./routes/schedule');
 
 const app = express();
 const clientOrigin = process.env.CLIENT_ORIGIN;
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change-this-to-a-long-random-string') {
+const FORBIDDEN_JWT_SECRETS = ['change-this-to-a-long-random-string', 'change-me-to-a-long-random-secret'];
+const jwtSecret = (process.env.JWT_SECRET || '').trim();
+if (!jwtSecret || FORBIDDEN_JWT_SECRETS.includes(jwtSecret)) {
   if (process.env.NODE_ENV === 'production') {
     console.error('JWT_SECRET must be set to a strong secret in production');
     process.exit(1);
@@ -36,6 +42,15 @@ if (process.env.NODE_ENV === 'production' && !clientOrigin) {
 if (process.env.NODE_ENV === 'production' && !isSupabaseConfigured()) {
   console.error('Supabase Auth must be configured in production');
   process.exit(1);
+}
+if (process.env.NODE_ENV === 'production') {
+  const storageConfigError = getStorageConfigurationError({
+    required: process.env.REQUIRE_R2_STORAGE === 'true',
+  });
+  if (storageConfigError) {
+    console.error(storageConfigError);
+    process.exit(1);
+  }
 }
 app.set('trust proxy', 1);
 const corsOrigins = clientOrigin
@@ -56,13 +71,30 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
+// Security headers for every response.
+// NOTE: CSP is intentionally NOT set yet — the frontend relies on inline event
+// handlers and inline styles, so a meaningful CSP (without 'unsafe-inline')
+// requires a frontend refactor to nonce-based handlers first.
+app.use((_req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 app.use('/api', (req, res, next) => {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return requireSameOrigin(req, res, next);
   next();
 });
 app.use(passport.initialize());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
-  setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+  setHeaders: (res, filePath) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    const ext = path.extname(filePath).toLowerCase();
+    if (!isSafeServeExtension(ext)) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+    }
+  },
 }));
 
 app.use('/api/auth', authRoutes);
@@ -74,7 +106,10 @@ app.use('/api/khutbahs', khutbahRoutes);
 app.use('/api/quran', quranRoutes);
 app.use('/api/schedule', scheduleRoutes);
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', asyncHandler(async (_req, res) => {
+  await prisma.$queryRaw`SELECT 1`;
+  res.json({ ok: true, database: 'ready' });
+}));
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'المسار غير موجود' }));
 
@@ -87,26 +122,87 @@ app.get('*', (req, res, next) => {
 
 app.use(errorHandler);
 
+function listenOnPort(port, host, allowPortFallback) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, host);
+    const onError = (err) => {
+      server.removeListener('listening', onListening);
+      if (allowPortFallback && err.code === 'EADDRINUSE') {
+        console.warn(`Port ${port} is already in use. Trying ${port + 1}...`);
+        resolve(listenOnPort(port + 1, host, allowPortFallback));
+        return;
+      }
+      reject(err);
+    };
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolve(server);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+  });
+}
+
+async function gracefulShutdown(server, { exitProcess = false, timeoutMs = 10000 } = {}) {
+  const forceExit = exitProcess
+    ? setTimeout(() => {
+      console.error('Graceful shutdown timed out');
+      process.exit(1);
+    }, timeoutMs)
+    : null;
+  forceExit?.unref();
+
+  try {
+    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    await prisma.$disconnect();
+    if (exitProcess) process.exit(0);
+  } finally {
+    if (forceExit) clearTimeout(forceExit);
+  }
+}
+
+async function startServer({
+  port = Number(process.env.PORT || 4000),
+  host = process.env.HOST || '0.0.0.0',
+  allowPortFallback = true,
+  registerSignalHandlers = true,
+} = {}) {
+  await prisma.$connect();
+  let server;
+  try {
+    server = await listenOnPort(port, host, allowPortFallback);
+  } catch (err) {
+    await prisma.$disconnect();
+    throw err;
+  }
+
+  if (registerSignalHandlers) {
+    let shuttingDown = false;
+    const shutdown = () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log('Shutting down gracefully...');
+      gracefulShutdown(server, { exitProcess: true }).catch((err) => {
+        console.error('Graceful shutdown failed:', err);
+        process.exit(1);
+      });
+    };
+    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', shutdown);
+  }
+
+  console.log(`Tajweed LMS API running on ${host}:${server.address().port}`);
+  return server;
+}
+
+app.startServer = startServer;
+app.gracefulShutdown = gracefulShutdown;
+
 module.exports = app;
 
 if (require.main === module) {
-  const PORT = Number(process.env.PORT || 4000);
-  const HOST = process.env.HOST || '0.0.0.0';
-
-  function startServer(port) {
-    const server = app.listen(port, HOST, () => console.log(`Tajweed LMS API running on ${HOST}:${port}`));
-
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        console.warn(`Port ${port} is already in use. Trying ${port + 1}...`);
-        startServer(port + 1);
-        return;
-      }
-
-      console.error('Failed to start server:', err);
-      process.exit(1);
-    });
-  }
-
-  startServer(PORT);
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
 }

@@ -108,6 +108,7 @@ export async function loadSchedule(weekStart) {
   const scheduleRes = await apiGet(`/schedule${params}`);
   state.scheduleDays = scheduleRes.days;
   state.scheduleWeekStart = scheduleRes.weekStart;
+  state.scheduleFixedDays = scheduleRes.fixedDays || [];
 }
 
 export function syncStateIds() {

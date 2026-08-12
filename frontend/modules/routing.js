@@ -19,7 +19,7 @@ export function hashToState() {
   if (page === "lesson" && id) return { page: "lesson", lessonId: id };
   if (page === "quarter" && id) return { page: "quarter", quarterId: id };
   if (page === "khutbah" && id) return { page: "khutbah", khutbahId: id };
-  if (["curriculum", "quran", "khutbahs", "profile", "admin", "search", "schedule"].includes(page)) return { page };
+  if (["curriculum", "quran", "khutbahs", "profile", "admin", "search"].includes(page)) return { page };
   return { page: "home" };
 }
 
@@ -212,16 +212,7 @@ export async function toggleQuarter(id) {
     toast(err.message, "error");
   }
 }
-export function openScheduleDay(dayOfWeek) {
-  state.page = "schedule";
-  state.scheduleUpdateId = dayOfWeek;
-  pushHash("#schedule");
-  window._render();
-  setTimeout(() => {
-    const el = document.querySelector(`[data-day="${dayOfWeek}"]`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 100);
-}
+
 export function refreshUploadTargets() {
   const target = document.querySelector("#upload-target");
   const area = document.querySelector("#upload-area");

@@ -95,7 +95,7 @@ async function main() {
   });
 
   await prisma.announcement.create({
-    data: { title: 'لا يوجد درس هذا الأسبوع', body: 'يستأنف الدرس القادم يوم السبت بإذن الله.', priority: 'important', expiresAt: new Date('2026-07-18') },
+    data: { title: 'مرحباً بكم في الفصل الجديد', body: 'يسعدنا استقبالكم في الفصل الدراسي الجديد. تابعوا الجدول الأسبوعي للمزيد من التفاصيل.', priority: 'normal' },
   });
 
   console.log('Seed complete.');

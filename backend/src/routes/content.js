@@ -8,6 +8,7 @@ const { queueMediaCleanup, drainMediaCleanupJobs } = require('../services/media-
 const recSelect = {
   id: true,
   title: true,
+  kind: true,
   duration: true,
   uploadedAt: true,
   version: true,
@@ -79,10 +80,10 @@ router.get(
         }),
         prisma.announcement.findMany({
           where: req.user.role === 'ADMIN' ? undefined : {
+            resolvedAt: null,
             OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
           },
           orderBy: { publishedAt: "desc" },
-          include: { affectedDays: true },
         }),
         prisma.resource.findMany({
           where: { lessonId: null, quarterId: null, khutbahId: null },
@@ -124,10 +125,7 @@ router.get(
         priority: a.priority,
         publishedAt: a.publishedAt.toISOString().slice(0, 10),
         expiresAt: a.expiresAt ? a.expiresAt.toISOString().slice(0, 10) : "",
-        isScheduleUpdate: a.isScheduleUpdate,
-        scheduleChangeType: a.scheduleChangeType,
         resolvedAt: a.resolvedAt ? a.resolvedAt.toISOString() : null,
-        affectedDays: a.affectedDays ? a.affectedDays.map(ad => ({ id: ad.id, dayOfWeek: ad.dayOfWeek })) : [],
       })),
       resources: tajweedResources.map(serializeResource),
     });

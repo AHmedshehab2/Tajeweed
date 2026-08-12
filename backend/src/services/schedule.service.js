@@ -1,5 +1,6 @@
 const scheduleRepo = require('../repositories/schedule.repository');
 const AppError = require('../lib/AppError');
+const { isoDate } = require('../lib/validation');
 const { DAY_NAMES_AR, TAG_LABELS_AR, DAY_TYPES } = require('../constants');
 
 function formatTime12(time24) {
@@ -68,7 +69,7 @@ function resolveDay(date, template, exception) {
 async function getSchedule(weekStartQuery) {
   let weekStart;
   if (weekStartQuery) {
-    weekStart = new Date(weekStartQuery + 'T00:00:00Z');
+    weekStart = isoDate(weekStartQuery, 'تاريخ بداية الأسبوع');
   } else {
     const now = new Date();
     const day = now.getDay();
@@ -109,9 +110,16 @@ async function getSchedule(weekStartQuery) {
     days.push(resolveDay(date, template, exception));
   }
 
+  const fixedDays = templates
+    .filter((t) => t.dayType === DAY_TYPES.FIXED)
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    .map((t) => DAY_NAMES_AR[t.dayOfWeek])
+    .filter(Boolean);
+
   return {
     weekStart: weekStart.toISOString().slice(0, 10),
     days,
+    fixedDays,
   };
 }
 
@@ -140,9 +148,11 @@ async function updateTemplates(entries) {
 async function getExceptions(fromQuery, toQuery) {
   const where = {};
   if (fromQuery) {
+    isoDate(fromQuery, 'التاريخ من');
     where.date = { ...where.date, gte: new Date(fromQuery + 'T00:00:00Z') };
   }
   if (toQuery) {
+    isoDate(toQuery, 'التاريخ إلى');
     where.date = { ...where.date, lte: new Date(toQuery + 'T23:59:59Z') };
   }
 
@@ -157,6 +167,7 @@ async function getExceptions(fromQuery, toQuery) {
 async function createException(dto) {
   const { date, isCancelled, isAdded, lessonTag, startTime, endTime, note } = dto || {};
   if (!date) throw new AppError('التاريخ مطلوب', 400);
+  isoDate(date, 'التاريخ');
   if (isCancelled && isAdded) throw new AppError('لا يمكن أن يكون الإلغاء والإضافة معاً', 400);
 
   const exceptionDate = new Date(date + 'T00:00:00Z');

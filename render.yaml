@@ -1,12 +1,14 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-# Note: SQLite on Render is not persistent across redeploys.
-# For production on Render, use a PostgreSQL database and update prisma/schema.prisma.
+# Database: PostgreSQL is managed EXTERNALLY (Render Postgres add-on or any
+# PostgreSQL provider). DATABASE_URL is set manually in the Render dashboard
+# (sync: false) - the app fails fast at `prisma migrate deploy` if it is missing.
 services:
   - type: web
     name: tajweed-lms
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -17,4 +19,26 @@ services:
       - key: ADMIN_BOOTSTRAP_EMAIL
         value: "tajeweed@gmail.com"
       - key: DATABASE_URL
-        value: file:./data/prod.db
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: REQUIRE_R2_STORAGE
+        value: "true"
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false

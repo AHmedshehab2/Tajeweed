@@ -1,3 +1,7 @@
+# Full self-hosted production stack: Caddy (TLS) + app + PostgreSQL 16.
+# The database runs inside this stack - there is no externally managed PostgreSQL
+# for the VPS deployment path. For an external/managed database, deploy on Render
+# (see render.yaml) where DATABASE_URL is supplied from the Render dashboard.
 services:
   caddy:
     image: caddy:2-alpine
@@ -9,31 +13,59 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      - tajweed
+      tajweed:
+        condition: service_healthy
     restart: unless-stopped
 
   tajweed:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 4000
       HOST: 0.0.0.0
-      DATABASE_URL: "file:./data/prod.db"
-      JWT_SECRET: ${JWT_SECRET}
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-*}
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
-      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
-      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:-}
+      DATABASE_URL: postgresql://tajweed:tajweed@postgres:5432/tajweed
+      DIRECT_URL: postgresql://tajweed:tajweed@postgres:5432/tajweed
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env or the shell}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?CLIENT_ORIGIN is required - your public HTTPS origin}
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?SUPABASE_PUBLISHABLE_KEY is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:?SUPABASE_JWKS_URL is required}
+      ALLOW_PROD_SEED: ${ALLOW_PROD_SEED:-false}
+      SEED_STUDENT_PASSWORD: ${SEED_STUDENT_PASSWORD:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
     volumes:
-      - tajweed-data:/app/backend/data
       - tajweed-uploads:/app/backend/uploads
     expose:
       - "4000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tajweed
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tajweed}
+      POSTGRES_DB: tajweed
+    volumes:
+      - tajweed-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tajweed -d tajweed"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:
-  tajweed-data:
+  tajweed-pg-data:
   tajweed-uploads:
   caddy-data:
   caddy-config:

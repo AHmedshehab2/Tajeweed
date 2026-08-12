@@ -86,11 +86,12 @@ async function handleUpload({ area, targetId, title, type, files }) {
 
   try {
     if (area === 'curriculum') {
-      if (type === 'recording') {
+      if (type === 'recording' || type === 'video') {
         const count = await contentRepo.countRecordingsByLesson(targetId);
         const rec = await contentRepo.createRecording({
           lessonId: targetId,
           title,
+          kind: type === 'video' ? 'video' : 'audio',
           duration: '00:00',
           version: count + 1,
           audioUrl: fileUrl,

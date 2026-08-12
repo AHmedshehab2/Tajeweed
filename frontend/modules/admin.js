@@ -1,5 +1,5 @@
 import { esc, fmt, isAdmin, empty, adminTable, showConfirm, showPrompt, toast } from "./utils.js";
-import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets, resourceLink, getRecentUploads, DAY_LABELS } from "./state.js";
+import { data, state, orderedChapters, allLessons, findLesson, chapterOptions, chapterPercent, curriculumPercent, uploadTargets, resourceLink, getRecentUploads, DAY_LABELS, TAG_LABELS } from "./state.js";
 import { apiFetch, loadAll } from "./api.js";
 import { getState as getAudioState, stop as audioStop } from "./audio-player.js";
 
@@ -75,7 +75,7 @@ function lessonForm(lesson) {
 }
 function uploadForm() {
   const globalResources = data.resources || [];
-  return `<h2>رفع مورد جديد</h2><p class="sub">يرتبط كل ملف مباشرة بالدرس أو الربع أو الخطبة المختارة، أو يمكن رفعه كمورد تجويد عام.</p><form class="upload-form" onsubmit="uploadResource(event)"><div class="form-grid"><div class="field"><label for="upload-area">قسم المحتوى</label><select id="upload-area" onchange="refreshUploadTargets()"><option value="curriculum">المنهج</option><option value="quran">القرآن</option><option value="khutbah">الخطب</option><option value="general">موارد التجويد العامة</option></select></div><div class="field" id="upload-target-field"><label for="upload-target">المحتوى المرتبط</label><select id="upload-target">${uploadTargets("curriculum")}</select></div><div class="field"><label for="upload-title">عنوان المورد</label><input id="upload-title" required placeholder="مثال: تسجيل شرح الإظهار"></div><div class="field"><label for="upload-type">نوع المورد</label><select id="upload-type"><option value="recording">تسجيل صوتي</option><option value="pdf">ملف PDF أو مذكرة</option><option value="image">صورة سبورة / صورة</option><option value="attachment">ملف إضافي</option></select></div></div><div class="field upload-file"><label for="upload-file">اختر الملف</label><input id="upload-file" type="file" required accept="audio/*,.pdf,image/*,.doc,.docx,.ppt,.pptx"><small>يُخزَّن الملف على الخادم ويُعرض للطلاب بعد الرفع.</small></div><div class="field upload-file upload-board" style="display:none"><label for="upload-board">صورة السبورة (اختياري)</label><input id="upload-board" type="file" accept="image/*"><small>تُستخدم كصورة بديلة للدرس إذا لم تتوفر صورة مرفقة مسبقًا.</small></div><button class="primary" type="submit">رفع وإرفاق المورد</button></form><section class="admin-section" style="margin-top:28px"><h3>الموارد العامة الحالية</h3><section class="admin-list">${globalResources.length ? globalResources.map((r) => `<article class="admin-item"><div style="flex:1"><b>${esc(r.title)}</b><span>${esc(r.kind)}</span></div><div>${resourceLink(r)}<button class="text-link" onclick="deleteResource('${esc(r.id)}')">حذف</button></div></article>`).join("") : empty("لا توجد موارد عامة بعد.")}</section></section>`;
+  return `<h2>رفع مورد جديد</h2><p class="sub">يرتبط كل ملف مباشرة بالدرس أو الربع أو الخطبة المختارة، أو يمكن رفعه كمورد تجويد عام.</p><form class="upload-form" onsubmit="uploadResource(event)"><div class="form-grid"><div class="field"><label for="upload-area">قسم المحتوى</label><select id="upload-area" onchange="refreshUploadTargets()"><option value="curriculum">المنهج</option><option value="quran">القرآن</option><option value="khutbah">الخطب</option><option value="general">موارد التجويد العامة</option></select></div><div class="field" id="upload-target-field"><label for="upload-target">المحتوى المرتبط</label><select id="upload-target">${uploadTargets("curriculum")}</select></div><div class="field"><label for="upload-title">عنوان المورد</label><input id="upload-title" required placeholder="مثال: تسجيل شرح الإظهار"></div><div class="field"><label for="upload-type">نوع المورد</label><select id="upload-type"><option value="recording">تسجيل صوتي</option><option value="video">تسجيل فيديو</option><option value="pdf">ملف PDF أو مذكرة</option><option value="image">صورة سبورة / صورة</option><option value="attachment">ملف إضافي</option></select></div></div><div class="field upload-file"><label for="upload-file">اختر الملف</label><input id="upload-file" type="file" required accept="audio/*,video/*,.pdf,image/*,.doc,.docx,.ppt,.pptx"><small>يُخزَّن الملف على الخادم ويُعرض للطلاب بعد الرفع.</small></div><div class="field upload-file upload-board" style="display:none"><label for="upload-board">صورة السبورة (اختياري)</label><input id="upload-board" type="file" accept="image/*"><small>تُستخدم كصورة بديلة للدرس إذا لم تتوفر صورة مرفقة مسبقًا.</small></div><button class="primary" type="submit">رفع وإرفاق المورد</button></form><section class="admin-section" style="margin-top:28px"><h3>الموارد العامة الحالية</h3><section class="admin-list">${globalResources.length ? globalResources.map((r) => `<article class="admin-item"><div style="flex:1"><b>${esc(r.title)}</b><span>${esc(r.kind)}</span></div><div>${resourceLink(r)}<button class="text-link" onclick="deleteResource('${esc(r.id)}')">حذف</button></div></article>`).join("") : empty("لا توجد موارد عامة بعد.")}</section></section>`;
 }
 
 function adminContent2() {
@@ -89,14 +89,29 @@ function announcementsAdmin() {
     .sort((a, b) =>
       String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")),
     );
-  const dayOptions = [1,2,3,4,5,6,7].map(d => `<option value="${d}">${DAY_LABELS[d]}</option>`).join("");
-  return `<div class="admin-section"><div class="section-title"><h2>الإعلانات</h2><button class="primary" style="margin:0" onclick="document.getElementById('announcement-form')?.scrollIntoView()">+ إضافة إعلان</button></div><form id="announcement-form" class="editor-form" onsubmit="addAnnouncement(event)"><h3>إضافة إعلان</h3><div class="form-grid"><div class="field"><label for="announcement-title">العنوان</label><input id="announcement-title" required></div><div class="field"><label for="announcement-expires">ينتهي في</label><input id="announcement-expires" type="date"></div><div class="field"><label for="announcement-priority">الأولوية</label><select id="announcement-priority"><option value="normal">عادي</option><option value="important">مهم</option></select></div></div><div class="field"><label for="announcement-body">النص</label><textarea id="announcement-body" required></textarea></div><div class="field"><label class="checkbox-label"><input id="announcement-schedule-toggle" type="checkbox" onchange="toggleScheduleFields()"> تحديث موعد</label></div><div id="announcement-schedule-fields" style="display:none"><div class="form-grid"><div class="field"><label>نوع التغيير</label><select id="announcement-change-type"><option value="CANCELLED">إلغاء</option><option value="ADDITIONAL_CLASS">إضافة حصة</option><option value="MODIFIED">تعديل الموعد</option></select></div><div class="field"><label>الأيام المتأثرة</label><select id="announcement-affected-days" multiple size="4">${dayOptions}</select></div></div></div><button class="primary" type="submit">إضافة</button></form><section class="admin-list">${items.length ? items.map((a) => `<article class="admin-item"><div><b>${esc(a.title)}</b>${a.isScheduleUpdate ? `<span class="pill schedule-pill">${a.scheduleChangeType === "CANCELLED" ? "ملغى" : a.scheduleChangeType === "ADDITIONAL_CLASS" ? "إضافة" : "تعديل"}</span>` : ""}<span>${a.expiresAt ? fmt(a.expiresAt) : "بدون انتهاء"} · ${a.priority === "important" ? "مهم" : "عادي"}${a.isScheduleUpdate ? ` · ${(a.affectedDays||[]).map(ad => DAY_LABELS[ad.dayOfWeek]).join("، ")}` : ""}</span>${a.isScheduleUpdate && !a.resolvedAt ? `<span class="pill pill-active">نشط</span>` : a.resolvedAt ? `<span>· تم الحل</span>` : ""}</div><div>${a.isScheduleUpdate && !a.resolvedAt ? `<button class="text-link" onclick="resolveAnnouncement('${esc(a.id)}')">حل</button>` : ""}<button class="text-link" onclick="deleteAnnouncement('${esc(a.id)}')">حذف</button></div></article>`).join("") : empty("لا توجد إعلانات.")}</section></div>`;
+  const editing = state.announcementEditor ? data.announcements.find(a => a.id === state.announcementEditor) : null;
+  const formTitle = editing ? 'تعديل إعلان' : 'إضافة إعلان';
+  const submitLabel = editing ? 'حفظ التعديلات' : 'إضافة';
+
+  const titleVal = editing ? esc(editing.title) : '';
+  const bodyVal = editing ? esc(editing.body) : '';
+  const expiresVal = editing && editing.expiresAt ? editing.expiresAt : '';
+  const priorityVal = editing ? editing.priority : 'normal';
+  const cancelBtn = editing ? `<button class="text-link" type="button" onclick="cancelEditors()">إلغاء</button>` : '';
+
+  const listHtml = items.length ? items.map(a => {
+    const resolvedBadge = a.resolvedAt ? '<span class="pill" style="opacity:0.6">تم الحل</span>' : '';
+    return `<article class="admin-item"><div><b>${esc(a.title)}</b>${resolvedBadge}<span>${a.expiresAt ? fmt(a.expiresAt) : "بدون انتهاء"} · ${a.priority === "important" ? "مهم" : "عادي"}</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="open" onclick="editAnnouncement('${esc(a.id)}')">تعديل</button><button class="text-link" onclick="resolveAnnouncement('${esc(a.id)}')">حل</button><button class="text-link" onclick="deleteAnnouncement('${esc(a.id)}')">حذف</button></div></article>`;
+  }).join('') : empty("لا توجد إعلانات بعد.");
+
+  return `<div class="admin-section"><div class="section-title"><h2>الإعلانات</h2>${editing ? '' : `<button class="primary" style="margin:0" onclick="document.getElementById('announcement-form')?.scrollIntoView()">+ إضافة إعلان</button>`}</div><form id="announcement-form" class="editor-form" onsubmit="addAnnouncement(event)"><h3>${formTitle}</h3><input type="hidden" id="announcement-id" value="${esc(editing?.id || '')}"><div class="form-grid"><div class="field"><label for="announcement-title">العنوان</label><input id="announcement-title" required value="${titleVal}"></div><div class="field"><label for="announcement-expires">ينتهي في</label><input id="announcement-expires" type="date" value="${expiresVal}"></div><div class="field"><label for="announcement-priority">الأولوية</label><select id="announcement-priority"><option value="normal"${priorityVal === 'normal' ? ' selected' : ''}>عادي</option><option value="important"${priorityVal === 'important' ? ' selected' : ''}>مهم</option></select></div></div><div class="field"><label for="announcement-body">النص</label><textarea id="announcement-body" required>${bodyVal}</textarea></div><div style="display:flex;gap:8px;align-items:center">${cancelBtn}<button class="primary" type="submit">${submitLabel}</button></div></form><section class="admin-items">${listHtml}</section></div>`;
 }
 
 export function adminTab(id) {
   state.adminTab = id;
   state.chapterEditor = null;
   state.lessonEditor = null;
+  state.announcementEditor = null;
   window._render();
 }
 export function newChapter() {
@@ -110,6 +125,7 @@ export function editChapter(id) {
 export function cancelEditors() {
   state.chapterEditor = null;
   state.lessonEditor = null;
+  state.announcementEditor = null;
   window._render();
 }
 export async function saveChapter(event) {
@@ -240,16 +256,20 @@ export async function addAnnouncement(event) {
   const expires = document.querySelector("#announcement-expires").value;
   const priority = document.querySelector("#announcement-priority").value || "normal";
   if (!title || !body) return;
-  const isScheduleUpdate = document.querySelector("#announcement-schedule-toggle")?.checked || false;
-  const scheduleChangeType = isScheduleUpdate ? document.querySelector("#announcement-change-type")?.value : null;
-  const affectedDays = isScheduleUpdate
-    ? Array.from(document.querySelector("#announcement-affected-days")?.selectedOptions || []).map(o => parseInt(o.value))
-    : [];
   try {
-    await apiFetch("/announcements", {
-      method: "POST",
-      body: JSON.stringify({ title, body, priority, expiresAt: expires || null, isScheduleUpdate, scheduleChangeType, affectedDays }),
-    });
+    const editingId = state.announcementEditor;
+    if (editingId) {
+      await apiFetch(`/announcements/${editingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title, body, priority, expiresAt: expires || null }),
+      });
+    } else {
+      await apiFetch("/announcements", {
+        method: "POST",
+        body: JSON.stringify({ title, body, priority, expiresAt: expires || null }),
+      });
+    }
+    state.announcementEditor = null;
     await loadAll();
     document.getElementById("announcement-form")?.reset();
     window._render();
@@ -257,6 +277,12 @@ export async function addAnnouncement(event) {
     toast(err.message, "error");
   }
 }
+export function editAnnouncement(id) {
+  state.announcementEditor = id;
+  window._render();
+  setTimeout(() => document.getElementById("announcement-form")?.scrollIntoView({ behavior: "smooth" }), 50);
+}
+
 export async function deleteAnnouncement(id) {
   if (!isAdmin(state.session)) return;
   if (!await showConfirm("حذف الإعلان", "هل تريد حذف هذا الإعلان؟ لا يمكن التراجع عن هذا الإجراء.")) return;
@@ -381,13 +407,59 @@ export async function deleteResource(id) {
 }
 
 function scheduleAdmin() {
-  const dayCheckboxes = [1,2,3,4,5,6,7].map(d => {
-    const saved = (state.scheduleAvailability || []).find(a => a.dayOfWeek === d);
-    const checked = saved ? saved.isAvailable : false;
-    const isFixed = [1,3,4].includes(d);
-    return `<label class="checkbox-label" style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" class="avail-day" data-day="${d}" ${checked ? "checked" : ""} ${isFixed ? "disabled" : ""}> ${DAY_LABELS[d]}${isFixed ? ' <small class="muted">(ثابت)</small>' : ""}</label>`;
-  }).join("");
-  return `<div class="admin-section"><div class="section-title"><h2>إدارة المواعيد</h2></div><form id="schedule-availability-form" onsubmit="saveScheduleAvailability(event)"><h3>أيام توفر الشيخ</h3><p class="sub">اختر الأيام الإضافية (غير الثابتة) التي يتوفر فيها الشيخ لعقد حصة إضافية.</p>${dayCheckboxes}<button class="primary" type="submit">حفظ</button></form><div style="margin-top:24px"><h3>الملخص</h3><p class="sub">الأيام الثابتة: الاثنين، الأربعاء، الخميس</p></div></div>`;
+  const templates = state.scheduleTemplates || [];
+  const templateMap = {};
+  templates.forEach(t => { templateMap[t.dayOfWeek] = t; });
+
+  const dayRows = [0,1,2,3,4,5,6].map(d => {
+    const t = templateMap[d] || {};
+    const dayType = t.dayType || 'NONE';
+    const tag = t.lessonTag || '';
+    const start = t.startTime || '09:00';
+    const end = t.endTime || '11:30';
+    const fixedHtml = dayType === 'FIXED'
+      ? `<select class="tmpl-tag" data-day="${d}"><option value="TAJWEED"${tag === 'TAJWEED' ? ' selected' : ''}>تجويد</option><option value="IQRAA"${tag === 'IQRAA' ? ' selected' : ''}>إقراء</option></select><input type="time" class="tmpl-start" data-day="${d}" value="${esc(start)}"><span>—</span><input type="time" class="tmpl-end" data-day="${d}" value="${esc(end)}">`
+      : '';
+    const optionalHtml = dayType === 'OPTIONAL'
+      ? `<select class="tmpl-tag" data-day="${d}"><option value="">بدون</option><option value="TAJWEED"${tag === 'TAJWEED' ? ' selected' : ''}>تجويد</option><option value="IQRAA"${tag === 'IQRAA' ? ' selected' : ''}>إقراء</option></select><input type="time" class="tmpl-start" data-day="${d}" value="${esc(start)}"><span>—</span><input type="time" class="tmpl-end" data-day="${d}" value="${esc(end)}">`
+      : '';
+    return `<tr><td>${DAY_LABELS[d]}</td><td><select class="tmpl-type" data-day="${d}"><option value="NONE"${dayType === 'NONE' ? ' selected' : ''}>بدون حصص</option><option value="FIXED"${dayType === 'FIXED' ? ' selected' : ''}>ثابت</option><option value="OPTIONAL"${dayType === 'OPTIONAL' ? ' selected' : ''}>اختياري</option></select></td><td class="tmpl-tag-cell">${dayType === 'FIXED' ? fixedHtml : dayType === 'OPTIONAL' ? optionalHtml : '<span class="muted">—</span>'}</td></tr>`;
+  }).join('');
+
+  return `<div class="admin-section"><div class="section-title"><h2>إدارة المواعيد</h2></div><p class="sub">جدول الأيام الثابتة والاختيارية. لإلغاء يوم ثابت أو إضافة حصة استثنائية استخدم الاستثناءات أدناه.</p><form id="template-form" onsubmit="saveScheduleTemplates(event)"><table class="admin-table schedule-template-table"><thead><tr><th>اليوم</th><th>النوع</th><th>التصنيف والوقت</th></tr></thead><tbody>${dayRows}</tbody></table><button class="primary" type="submit">حفظ الجدول</button></form><div style="margin-top:32px"><div class="section-title"><h3>الاستثناءات</h3><button class="text-link" onclick="showAddException()">+ إضافة استثناء</button></div><div id="exception-form-container"></div><div id="exception-list">${empty("لا توجد استثناءات بعد.")}</div></div></div>`;
+}
+
+export async function saveScheduleTemplates(event) {
+  event.preventDefault();
+  if (!isAdmin(state.session)) return;
+  const rows = document.querySelectorAll(".tmpl-type");
+  const entries = [];
+  rows.forEach(sel => {
+    const dayOfWeek = parseInt(sel.dataset.day);
+    const dayType = sel.value;
+    const tagSel = document.querySelector(`.tmpl-tag[data-day="${dayOfWeek}"]`);
+    const startSel = document.querySelector(`.tmpl-start[data-day="${dayOfWeek}"]`);
+    const endSel = document.querySelector(`.tmpl-end[data-day="${dayOfWeek}"]`);
+    entries.push({
+      dayOfWeek,
+      dayType,
+      lessonTag: tagSel ? tagSel.value || null : null,
+      startTime: startSel ? startSel.value : null,
+      endTime: endSel ? endSel.value : null,
+    });
+  });
+  try {
+    await apiFetch("/schedule/templates", {
+      method: "PUT",
+      body: JSON.stringify({ entries }),
+    });
+    state.scheduleTemplates = await apiFetch("/schedule/templates");
+    await loadAll();
+    toast("تم حفظ جدول المواعيد بنجاح.", "success");
+    window._render();
+  } catch (err) {
+    toast(err.message, "error");
+  }
 }
 
 export async function resolveAnnouncement(id) {
@@ -402,25 +474,70 @@ export async function resolveAnnouncement(id) {
   }
 }
 
-export async function saveScheduleAvailability(event) {
+export async function loadScheduleExceptions() {
+  try {
+    const exceptions = await apiFetch("/schedule/exceptions");
+    state.scheduleExceptions = exceptions;
+    const container = document.getElementById("exception-list");
+    if (container) {
+      container.innerHTML = exceptions.length
+        ? exceptions.map(e => {
+            const date = e.date;
+            let label = '';
+            if (e.isCancelled) label = 'إلغاء';
+            else if (e.isAdded) label = 'إضافة';
+            return `<div class="admin-item"><div><b>${date}</b> <span class="pill">${esc(label)}</span>${e.note ? ` — ${esc(e.note)}` : ''}</div><button class="text-link" onclick="deleteException(${e.id})">حذف</button></div>`;
+          }).join('')
+        : empty("لا توجد استثناءات بعد.");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+export function showAddException() {
+  const container = document.getElementById("exception-form-container");
+  if (!container) return;
+  container.innerHTML = `<form id="exception-form" class="editor-form" onsubmit="saveException(event)" style="margin-top:12px"><div class="form-grid"><div class="field"><label>التاريخ</label><input type="date" id="exc-date" required></div><div class="field"><label>النوع</label><select id="exc-type"><option value="cancel">إلغاء</option><option value="add">إضافة</option></select></div></div><div class="form-grid"><div class="field"><label>التصنيف</label><select id="exc-tag"><option value="">—</option><option value="TAJWEED">تجويد</option><option value="IQRAA">إقراء</option></select></div><div class="field"><label>من</label><input type="time" id="exc-start" value="09:00"></div><div class="field"><label>إلى</label><input type="time" id="exc-end" value="11:30"></div></div><div class="field"><label>ملاحظة</label><input id="exc-note" placeholder="اختياري"></div><div style="display:flex;gap:8px"><button class="primary" type="submit">حفظ</button><button class="text-link" type="button" onclick="document.getElementById('exception-form-container').innerHTML=''">إلغاء</button></div></form>`;
+}
+
+export async function saveException(event) {
   event.preventDefault();
   if (!isAdmin(state.session)) return;
-  const checkboxes = document.querySelectorAll(".avail-day");
-  const entries = [];
-  checkboxes.forEach(cb => {
-    const dayOfWeek = parseInt(cb.dataset.day);
-    if ([1,3,4].includes(dayOfWeek)) return;
-    entries.push({ dayOfWeek, isAvailable: cb.checked });
-  });
+  const date = document.getElementById("exc-date").value;
+  const type = document.getElementById("exc-type").value;
+  const tag = document.getElementById("exc-tag").value || null;
+  const startTime = document.getElementById("exc-start").value;
+  const endTime = document.getElementById("exc-end").value;
+  const note = document.getElementById("exc-note").value.trim() || null;
   try {
-    const result = await apiFetch("/schedule/availability", {
-      method: "PUT",
-      body: JSON.stringify({ entries }),
+    await apiFetch("/schedule/exceptions", {
+      method: "POST",
+      body: JSON.stringify({
+        date,
+        isCancelled: type === "cancel",
+        isAdded: type === "add",
+        lessonTag: tag,
+        startTime,
+        endTime,
+        note,
+      }),
     });
-    state.scheduleAvailability = result;
-    await loadAll();
-    toast("تم حفظ أيام التوفر بنجاح.", "success");
-    window._render();
+    await loadScheduleExceptions();
+    document.getElementById("exception-form-container").innerHTML = "";
+    toast("تمت إضافة الاستثناء.", "success");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+export async function deleteException(id) {
+  if (!isAdmin(state.session)) return;
+  if (!await showConfirm("حذف الاستثناء", "هل تريد حذف هذا الاستثناء؟")) return;
+  try {
+    await apiFetch(`/schedule/exceptions/${id}`, { method: "DELETE" });
+    await loadScheduleExceptions();
+    toast("تم الحذف.", "success");
   } catch (err) {
     toast(err.message, "error");
   }

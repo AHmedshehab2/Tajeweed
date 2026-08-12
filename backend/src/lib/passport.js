@@ -5,7 +5,10 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../prisma');
 
-const CLIENT_ORIGIN = (process.env.CLIENT_ORIGIN || 'http://localhost:4000').split(',')[0].trim();
+const CALLBACK_BASE = process.env.OAUTH_CALLBACK_URL
+  || (process.env.NODE_ENV === 'production'
+    ? (process.env.CLIENT_ORIGIN || '').split(',')[0].trim()
+    : `http://localhost:${process.env.PORT || 4000}`);
 
 function isGoogleConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -17,15 +20,17 @@ function isFacebookConfigured() {
 
 // Shared resolver: find or create a user from an OAuth profile.
 // Handles account linking (if email already exists, link the provider to that account).
-// SECURITY: We only auto-link when the OAuth provider has verified the email address.
+// SECURITY: We only auto-link and only grant ADMIN (ADMIN_BOOTSTRAP_EMAIL) when the
+//   OAuth provider has explicitly verified the email address.
 //   - Google: profile.emails[0].verified must be true
-//   - Facebook: email is never trusted for linking (Facebook does not reliably verify emails)
+//   - Facebook: treated as unverified unless the provider explicitly flags it
 async function resolveOAuthUser(provider, profile) {
   const emailEntry = profile.emails && profile.emails[0];
   const email = emailEntry?.value;
   // Only treat the email as verified if the provider explicitly flags it.
-  // Google includes `verified: true`; Facebook does not — treat Facebook emails as unverified.
-  const emailVerified = provider === 'google' ? Boolean(emailEntry?.verified) : false;
+  // Google includes `verified: true`; Facebook may not — unverified emails never
+  // qualify for auto-linking or ADMIN bootstrap promotion.
+  const emailVerified = Boolean(emailEntry?.verified);
   const avatar = (profile.photos && profile.photos[0] && profile.photos[0].value) || null;
   const providerId = profile.id;
   const displayName = profile.displayName || (email ? email.split('@')[0] : 'مستخدم');
@@ -38,6 +43,9 @@ async function resolveOAuthUser(provider, profile) {
     const bootstrap = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
     if (
       bootstrap &&
+      emailVerified &&
+      email &&
+      email.trim().toLowerCase() === bootstrap &&
       existingByProvider.email?.toLowerCase() === bootstrap &&
       existingByProvider.role !== 'ADMIN'
     ) {
@@ -47,7 +55,7 @@ async function resolveOAuthUser(provider, profile) {
   }
 
   const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
-  const shouldBeAdmin = !!(email && bootstrapEmail && email.toLowerCase() === bootstrapEmail);
+  const shouldBeAdmin = !!(email && bootstrapEmail && emailVerified && email.toLowerCase() === bootstrapEmail);
 
   // 2. Try to find an existing user by email — link the provider to the existing account.
   //    SECURITY: Only link if the OAuth provider has verified this email address.
@@ -95,7 +103,7 @@ if (isGoogleConfigured()) {
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: '/api/auth/google/callback',
+      callbackURL: CALLBACK_BASE + '/api/auth/google/callback',
       scope: ['profile', 'email'],
       proxy: true,
     },
@@ -116,7 +124,7 @@ if (isFacebookConfigured()) {
     {
       clientID: process.env.FACEBOOK_APP_ID,
       clientSecret: process.env.FACEBOOK_APP_SECRET,
-      callbackURL: '/api/auth/facebook/callback',
+      callbackURL: CALLBACK_BASE + '/api/auth/facebook/callback',
       profileFields: ['id', 'displayName', 'emails', 'photos'],
       enableProof: true,
       proxy: true,
@@ -132,4 +140,4 @@ if (isFacebookConfigured()) {
   ));
 }
 
-module.exports = { passport, isGoogleConfigured, isFacebookConfigured };
+module.exports = { passport, isGoogleConfigured, isFacebookConfigured, resolveOAuthUser };

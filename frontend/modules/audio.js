@@ -210,7 +210,7 @@ export function cancelCountdown() {
 function openLessonAutoPlay(lessonId) {
   const lesson = findLesson(lessonId);
   if (!lesson || !lesson.recordings.length) return;
-  const firstRec = lesson.recordings.find((r) => r.audioUrl) || lesson.recordings[0];
+  const firstRec = lesson.recordings.find((r) => r.audioUrl && r.kind !== "video") || lesson.recordings.find((r) => r.kind !== "video");
   if (!firstRec?.audioUrl) return;
 
   import("./routing.js").then((m) => {
@@ -224,7 +224,7 @@ function openLessonAutoPlay(lessonId) {
 
 export function playRecording(button, id) {
   const item = findRecordingById(id);
-  if (!item?.audioUrl) return;
+  if (!item?.audioUrl || item.kind === "video") return;
 
   const parentLesson = findLessonForRecording(id);
   if (parentLesson) {
@@ -351,7 +351,7 @@ export function miniPrevLesson() {
   import("./routing.js").then((m) => {
     m.openLesson(prev.id);
     setTimeout(() => {
-      const rec = prev.recordings.find((r) => r.audioUrl) || prev.recordings[0];
+      const rec = prev.recordings.find((r) => r.audioUrl && r.kind !== "video") || prev.recordings.find((r) => r.kind !== "video");
       if (rec) {
         const btn = document.querySelector(`.rich-audio[data-recording-id="${rec.id}"] .play`);
         if (btn) playRecording(btn, rec.id);
@@ -370,7 +370,7 @@ export function miniNextLesson() {
   import("./routing.js").then((m) => {
     m.openLesson(next.id);
     setTimeout(() => {
-      const rec = next.recordings.find((r) => r.audioUrl) || next.recordings[0];
+      const rec = next.recordings.find((r) => r.audioUrl && r.kind !== "video") || next.recordings.find((r) => r.kind !== "video");
       if (rec) {
         const btn = document.querySelector(`.rich-audio[data-recording-id="${rec.id}"] .play`);
         if (btn) playRecording(btn, rec.id);

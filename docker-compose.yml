@@ -3,25 +3,54 @@ services:
     build: .
     ports:
       - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 4000
       HOST: 0.0.0.0
-      DATABASE_URL: "file:./data/prod.db"
-      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-*}
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
-      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
-      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:-}
+      DATABASE_URL: postgresql://tajweed:tajweed@postgres:5432/tajweed
+      DIRECT_URL: postgresql://tajweed:tajweed@postgres:5432/tajweed
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env or the shell}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:4000}
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?SUPABASE_PUBLISHABLE_KEY is required}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?SUPABASE_SECRET_KEY is required}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:?SUPABASE_JWKS_URL is required}
+      ALLOW_PROD_SEED: ${ALLOW_PROD_SEED:-false}
+      SEED_STUDENT_PASSWORD: ${SEED_STUDENT_PASSWORD:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
     volumes:
-      - tajweed-data:/app/backend/data
       - tajweed-uploads:/app/backend/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tajweed
+      POSTGRES_PASSWORD: tajweed
+      POSTGRES_DB: tajweed
+    ports:
+      - "5432:5432"
+    volumes:
+      - tajweed-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tajweed -d tajweed"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:
-  tajweed-data:
+  tajweed-pg-data:
   tajweed-uploads:

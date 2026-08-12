@@ -102,6 +102,28 @@ describe('Auth routes', () => {
     });
   });
 
+  describe('Security headers', () => {
+    it('sends hardening headers on API responses', async () => {
+      const res = await request(app).get('/api/health');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, database: 'ready' });
+      expect(res.headers['x-frame-options']).toBe('DENY');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['referrer-policy']).toBe('no-referrer');
+      expect(res.headers['permissions-policy']).toContain('camera=()');
+      expect(res.headers['permissions-policy']).toContain('microphone=()');
+      expect(res.headers['permissions-policy']).toContain('geolocation=()');
+    });
+
+    it('sends hardening headers on static/frontend responses', async () => {
+      const res = await request(app).get('/');
+      expect(res.status).toBe(200);
+      expect(res.headers['x-frame-options']).toBe('DENY');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['referrer-policy']).toBe('no-referrer');
+    });
+  });
+
   describe('Admin routes rejection for non-admin', () => {
     let cookie;
 
@@ -119,6 +141,21 @@ describe('Auth routes', () => {
         .send({ name: 'Test', order: 1 });
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('Server lifecycle', () => {
+    it('connects before listening and disconnects after graceful shutdown', async () => {
+      const server = await app.startServer({
+        port: 0,
+        host: '127.0.0.1',
+        registerSignalHandlers: false,
+      });
+
+      expect(server.listening).toBe(true);
+      await app.gracefulShutdown(server);
+      expect(server.listening).toBe(false);
+      await require('../prisma').$connect();
     });
   });
 });

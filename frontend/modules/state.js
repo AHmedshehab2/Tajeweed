@@ -15,13 +15,18 @@ export let state = {
   chapterEditor: null,
   lessonEditor: null,
   scheduleDays: [],
-  scheduleAvailability: [],
+  scheduleWeekStart: null,
+  scheduleFixedDays: [],
+  scheduleTemplates: [],
+  scheduleExceptions: [],
   scheduleUpdateId: null,
+  announcementEditor: null,
 };
 export let progressCache = { lessons: {}, quarters: [], activity: [] };
 
-export const DAY_LABELS = { 1: 'الاثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة', 6: 'السبت', 7: 'الأحد' };
+export const DAY_LABELS = { 0: 'الأحد', 1: 'الاثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة', 6: 'السبت' };
 export const FIXED_DAYS = [1, 3, 4];
+export const TAG_LABELS = { TAJWEED: 'تجويد', IQRAA: 'إقراء' };
 
 export function setData(v) { data = v; }
 export function setState(v) { Object.assign(state, v); }
@@ -88,6 +93,9 @@ export const curriculumPercent = () => {
 export const totalQuarters = () => data.hizbs.reduce((sum, h) => sum + (h.quarters ? h.quarters.length : 0), 0);
 export const quranPercent = () => { const total = totalQuarters(); return total ? Math.round((completedQuarters().length / total) * 100) : 0; };
 
+export const videoPlayer = (recording, label) => {
+  return `<div class="video rich-video" data-recording-id="${esc(recording.id)}"><video class="video-player" controls preload="metadata" playsinline><source src="${esc(mediaUrl(recording.audioUrl))}"></source></video><div class="video-info"><div class="video-title"><b>${esc(recording.title)}</b><span>${esc(label)} · رفع ${fmt(recording.uploadedAt)}</span></div>${isAdmin(state.session) ? `<button class="btn-delete-sm" onclick="deleteRecording('${esc(recording.id)}')" aria-label="حذف الفيديو"><span class="icon">close</span></button>` : ""}</div></div>`;
+};
 export const audioPlayer = (recording, label) => {
   const gs = getAudioState();
   const active = gs.currentRecordingId === recording.id;

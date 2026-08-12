@@ -18,6 +18,14 @@ const ALLOWED_MIMETYPES = {
     'audio/mp4',
     'audio/flac',
   ],
+  video: [
+    'video/mp4',
+    'video/webm',
+    'video/ogg',
+    'video/x-msvideo',
+    'video/quicktime',
+    'video/x-matroska',
+  ],
   pdf: ['application/pdf'],
   image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   attachment: [
@@ -32,6 +40,7 @@ const ALLOWED_MIMETYPES = {
 
 const SIZE_LIMITS = {
   recording: 100 * 1024 * 1024,
+  video: 500 * 1024 * 1024,
   pdf: 10 * 1024 * 1024,
   image: 10 * 1024 * 1024,
   attachment: 10 * 1024 * 1024,
@@ -39,6 +48,7 @@ const SIZE_LIMITS = {
 
 const KIND_LABEL = {
   recording: 'تسجيل صوتي',
+  video: 'تسجيل فيديو',
   pdf: 'PDF',
   image: 'صورة',
   attachment: 'ملف إضافي',
@@ -73,6 +83,11 @@ function validateUpload(req, _res, next) {
 
   const board = req.files && req.files['board'] && req.files['board'][0];
   if (board) {
+    if (board.size > SIZE_LIMITS.image) {
+      return next(
+        new AppError(`حجم صورة السبورة يتجاوز الحد الأقصى (${Math.round(SIZE_LIMITS.image / 1024 / 1024)} MB)`, 400)
+      );
+    }
     const boardAllowed = ALLOWED_MIMETYPES.image;
     if (!boardAllowed || !boardAllowed.includes(board.mimetype)) {
       return next(new AppError('صورة السبورة يجب أن تكون صورة (JPEG, PNG, WebP)', 400));
