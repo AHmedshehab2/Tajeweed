@@ -1,32 +1,24 @@
-const path = require('path');
-const fs = require('fs');
 const { execSync } = require('child_process');
 
-const backendDir = path.join(__dirname);
-const testDbPath = path.join(backendDir, 'prisma/test.db');
+const backendDir = __dirname;
 
 module.exports = async function setup() {
-  process.env.DATABASE_URL = `file:${testDbPath}`;
-  process.env.JWT_SECRET = 'test-secret-for-testing-only';
-  process.env.NODE_ENV = 'test';
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL must be set for tests');
+  }
 
-  // Clean up any leftover test DB
-  try { fs.unlinkSync(testDbPath); } catch (_) {}
-
-  execSync('npx prisma migrate deploy', {
+  execSync('npx prisma db push --force-reset --accept-data-loss', {
     cwd: backendDir,
-    env: { ...process.env, DATABASE_URL: `file:${testDbPath}` },
+    env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: process.env.DIRECT_URL || databaseUrl },
     stdio: 'pipe',
   });
 
   execSync('node prisma/seed.js', {
     cwd: backendDir,
-    env: { ...process.env, DATABASE_URL: `file:${testDbPath}`, SEED_STUDENT_PASSWORD: 'test1234', SEED_ADMIN_PASSWORD: 'admin1234' },
+    env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: process.env.DIRECT_URL || databaseUrl, SEED_STUDENT_PASSWORD: 'test1234', SEED_ADMIN_PASSWORD: 'admin1234' },
     stdio: 'pipe',
   });
 };
 
-module.exports.teardown = async function teardown() {
-  const testDbPath = path.join(__dirname, 'prisma/test.db');
-  try { fs.unlinkSync(testDbPath); } catch (_) {}
-};
+module.exports.teardown = async function teardown() {};

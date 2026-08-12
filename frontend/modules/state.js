@@ -14,8 +14,14 @@ export let state = {
   adminTab: "overview",
   chapterEditor: null,
   lessonEditor: null,
+  scheduleDays: [],
+  scheduleAvailability: [],
+  scheduleUpdateId: null,
 };
 export let progressCache = { lessons: {}, quarters: [], activity: [] };
+
+export const DAY_LABELS = { 1: 'الاثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة', 6: 'السبت', 7: 'الأحد' };
+export const FIXED_DAYS = [1, 3, 4];
 
 export function setData(v) { data = v; }
 export function setState(v) { Object.assign(state, v); }

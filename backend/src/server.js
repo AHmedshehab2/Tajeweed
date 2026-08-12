@@ -5,6 +5,8 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const passport = require('passport');
 const errorHandler = require('./middleware/errorHandler');
+const { isSupabaseConfigured } = require('./lib/supabase');
+const { requireSameOrigin } = require('./middleware/auth');
 
 // Initialize Passport strategies (Google/Facebook OAuth)
 require('./lib/passport');
@@ -16,6 +18,7 @@ const progressRoutes = require('./routes/progress');
 const uploadRoutes = require('./routes/upload');
 const khutbahRoutes = require('./routes/khutbahs');
 const quranRoutes = require('./routes/quran');
+const scheduleRoutes = require('./routes/schedule');
 
 const app = express();
 const clientOrigin = process.env.CLIENT_ORIGIN;
@@ -30,25 +33,33 @@ if (process.env.NODE_ENV === 'production' && !clientOrigin) {
   console.error('CLIENT_ORIGIN must be set in production');
   process.exit(1);
 }
+if (process.env.NODE_ENV === 'production' && !isSupabaseConfigured()) {
+  console.error('Supabase Auth must be configured in production');
+  process.exit(1);
+}
 app.set('trust proxy', 1);
 const corsOrigins = clientOrigin
   ? clientOrigin.split(',').map(s => s.trim()).filter(Boolean)
-  : ['*'];
-const allowAllOrigins = corsOrigins.includes('*');
-app.use((req, res, next) => {
-  if (allowAllOrigins) return next();
-  const origin = req.headers.origin;
-  if (!origin) return next();
-  if (corsOrigins.includes(origin)) return next();
-  try {
-    const requestHost = (req.headers.host || '').replace(/:\d+$/, '');
-    if (new URL(origin).hostname === requestHost) return next();
-  } catch (_) {}
-  return res.status(403).json({ error: 'Not allowed by CORS' });
-});
-app.use(cors({ origin: true, credentials: true }));
+  : [];
+if (process.env.NODE_ENV === 'production' && (corsOrigins.length !== 1 || corsOrigins[0] === '*')) {
+  console.error('CLIENT_ORIGIN must contain one explicit HTTPS origin in production');
+  process.exit(1);
+}
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || corsOrigins.includes(origin)) return callback(null, true);
+    const error = new Error('Not allowed by CORS');
+    error.status = 403;
+    return callback(error);
+  },
+  credentials: true,
+}));
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
+app.use('/api', (req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return requireSameOrigin(req, res, next);
+  next();
+});
 app.use(passport.initialize());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
   setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
@@ -61,6 +72,7 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/khutbahs', khutbahRoutes);
 app.use('/api/quran', quranRoutes);
+app.use('/api/schedule', scheduleRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 

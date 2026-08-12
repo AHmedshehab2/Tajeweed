@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const prisma = require('../prisma');
+const userRepo = require('../repositories/user.repository');
+const AppError = require('../lib/AppError');
 const {
   isSupabaseConfigured,
   verifySupabaseUser,
@@ -13,24 +14,20 @@ async function resolvePrismaUserFromSupabase(auth) {
   const email = claims.email;
   if (!email) return null;
 
-  let user = await prisma.user.findUnique({ where: { email } });
+  const normalizedEmail = email.trim().toLowerCase();
+  let user = await userRepo.findUserByEmail(normalizedEmail);
   if (!user) {
-    const role =
-      claims.appMetadata?.role === 'ADMIN' || claims.userMetadata?.role === 'admin'
-        ? 'ADMIN'
-        : 'STUDENT';
     const name =
       claims.userMetadata?.name ||
       claims.userMetadata?.full_name ||
       email.split('@')[0];
-    user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
-        role,
-        avatar: claims.userMetadata?.avatar_url || null,
-      },
+    const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10);
+    user = await userRepo.createUser({
+      name,
+      email: normalizedEmail,
+      passwordHash,
+      role: 'STUDENT',
+      avatar: claims.userMetadata?.avatar_url || null,
     });
   }
 
@@ -44,22 +41,30 @@ async function resolvePrismaUserFromSupabase(auth) {
   };
 }
 
-async function requireAuth(req, res, next) {
-  const token = req.cookies?.token || null;
-  if (!token) return res.status(401).json({ error: 'مطلوب تسجيل الدخول' });
+function requireSameOrigin(req, res, next) {
+  const origin = req.get('origin');
+  if (!origin) {
+    if (process.env.NODE_ENV === 'production') {
+      return next(new AppError('مصدر الطلب غير مسموح', 403));
+    }
+    return next();
+  }
+  const configured = (process.env.CLIENT_ORIGIN || '').split(',').map((value) => value.trim());
+  if (configured.includes(origin)) return next();
+  return next(new AppError('مصدر الطلب غير مسموح', 403));
+}
 
-  // Local app JWT (email/password login and demo accounts)
+async function requireAuth(req, _res, next) {
+  const token = req.cookies?.token || null;
+  if (!token) return next(new AppError('مطلوب تسجيل الدخول', 401));
+
   if (process.env.JWT_SECRET) {
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
-      // Verify tokenVersion hasn't been revoked; load role from DB so promotions apply
       if (payload.id && payload.tokenVersion !== undefined) {
-        const user = await prisma.user.findUnique({
-          where: { id: payload.id },
-          select: { tokenVersion: true, role: true, name: true, email: true, avatar: true },
-        });
+        const user = await userRepo.findUserAuthFields(payload.id);
         if (!user || user.tokenVersion !== payload.tokenVersion) {
-          return res.status(401).json({ error: 'الجلسة انتهت، سجّل الدخول مجدداً' });
+          return next(new AppError('الجلسة انتهت، سجّل الدخول مجدداً', 401));
         }
         req.user = {
           id: payload.id,
@@ -78,28 +83,27 @@ async function requireAuth(req, res, next) {
     }
   }
 
-  // Supabase Auth JWT
   if (isSupabaseConfigured()) {
     try {
       const auth = await verifySupabaseUser(req);
       if (auth) {
         const user = await resolvePrismaUserFromSupabase(auth);
-        if (!user) return res.status(401).json({ error: 'جلسة غير صالحة' });
+        if (!user) return next(new AppError('جلسة غير صالحة', 401));
         req.user = user;
         req.supabase = createUserClient(auth.token);
         return next();
       }
     } catch (_) {
-      return res.status(401).json({ error: 'جلسة غير صالحة' });
+      return next(new AppError('جلسة غير صالحة', 401));
     }
   }
 
-  return res.status(401).json({ error: 'جلسة غير صالحة' });
+  return next(new AppError('جلسة غير صالحة', 401));
 }
 
-function requireAdmin(req, res, next) {
+function requireAdmin(req, _res, next) {
   if (req.user?.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'صلاحيات المدير مطلوبة' });
+    return next(new AppError('صلاحيات المدير مطلوبة', 403));
   }
   next();
 }
@@ -107,5 +111,6 @@ function requireAdmin(req, res, next) {
 module.exports = {
   requireAuth,
   requireAdmin,
+  requireSameOrigin,
   resolvePrismaUserFromSupabase,
 };

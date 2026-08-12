@@ -9,9 +9,31 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: backend
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/testdb
+      JWT_SECRET: ci-jwt-secret
+      NODE_ENV: test
 
     steps:
       - uses: actions/checkout@v4
@@ -22,15 +44,11 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Create .env for Prisma
-        run: |
-          echo 'DATABASE_URL="file:./dev.db"' > .env
-          echo 'JWT_SECRET="ci-jwt-secret"' >> .env
-
       - run: npm ci
-
-      - run: npx prisma validate
 
       - run: npx prisma generate
 
+      - run: npx prisma migrate deploy
+
       - run: npm test
+      

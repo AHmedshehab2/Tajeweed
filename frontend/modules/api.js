@@ -49,10 +49,45 @@ export async function apiFetch(path, options = {}) {
   }
 }
 
+export async function apiGet(path, options = {}) {
+  return apiFetch(path, { ...options, method: "GET" });
+}
+
+export async function apiPost(path, body, options = {}) {
+  const isFormData = body instanceof FormData;
+  return apiFetch(path, {
+    ...options,
+    method: "POST",
+    body: isFormData ? body : JSON.stringify(body),
+  });
+}
+
+export async function apiPut(path, body, options = {}) {
+  const isFormData = body instanceof FormData;
+  return apiFetch(path, {
+    ...options,
+    method: "PUT",
+    body: isFormData ? body : JSON.stringify(body),
+  });
+}
+
+export async function apiPatch(path, body, options = {}) {
+  const isFormData = body instanceof FormData;
+  return apiFetch(path, {
+    ...options,
+    method: "PATCH",
+    body: isFormData ? body : JSON.stringify(body),
+  });
+}
+
+export async function apiDelete(path, options = {}) {
+  return apiFetch(path, { ...options, method: "DELETE" });
+}
+
 export async function loadAll() {
   const [content, progress] = await Promise.all([
-    apiFetch("/content"),
-    apiFetch("/progress/me"),
+    apiGet("/content"),
+    apiGet("/progress/me"),
   ]);
   setData(content);
   setProgressCache({
@@ -61,6 +96,18 @@ export async function loadAll() {
     activity: progress.activity,
   });
   syncStateIds();
+  await loadSchedule().catch(() => {});
+  try {
+    const templates = await apiGet("/schedule/templates");
+    state.scheduleTemplates = templates;
+  } catch (_) {}
+}
+
+export async function loadSchedule(weekStart) {
+  const params = weekStart ? `?weekStart=${weekStart}` : '';
+  const scheduleRes = await apiGet(`/schedule${params}`);
+  state.scheduleDays = scheduleRes.days;
+  state.scheduleWeekStart = scheduleRes.weekStart;
 }
 
 export function syncStateIds() {
@@ -99,17 +146,11 @@ export async function signIn(event) {
       const session = data.session;
       if (!session) throw new Error("فشل تسجيل الدخول: لم يتم العثور على جلسة نشطة");
 
-      const { user } = await apiFetch("/auth/supabase", {
-        method: "POST",
-        body: JSON.stringify({ accessToken: session.access_token }),
-      });
+      const { user } = await apiPost("/auth/supabase", { accessToken: session.access_token });
       write(STORAGE.user, user);
       state.session = user;
     } else {
-      const { user } = await apiFetch("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      const { user } = await apiPost("/auth/login", { email, password });
       write(STORAGE.user, user);
       state.session = user;
     }
@@ -128,10 +169,7 @@ export async function signUp(event) {
     password = document.querySelector("#reg-password").value;
   showLoading();
   try {
-    const { user } = await apiFetch("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ name, email, password }),
-    });
+    const { user } = await apiPost("/auth/register", { name, email, password });
     write(STORAGE.user, user);
     state.session = user;
     await loadAll();
@@ -152,4 +190,69 @@ export function logout() {
   state.session = null;
   state.authView = "login";
   window._render();
+}
+
+export async function requestPasswordReset(event) {
+  event.preventDefault();
+  const email = document.querySelector("#reset-email").value.trim();
+  if (!email) return;
+  showLoading();
+  try {
+    if (supabaseConfig.enabled && supabaseClient) {
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/`
+      });
+      if (error) throw error;
+      toast("تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.", "success");
+      state.authView = "login";
+      window._render();
+    } else {
+      toast("استعادة كلمة المرور غير متوفرة لتهيئة الدخول الحالية.", "error");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+export async function updatePassword(event) {
+  event.preventDefault();
+  const newPassword = document.querySelector("#new-password").value;
+  const confirmPassword = document.querySelector("#confirm-password").value;
+  if (!newPassword || newPassword.length < 8) {
+    toast("كلمة المرور يجب أن تكون 8 أحرف على الأقل", "error");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    toast("كلمتا المرور غير متطابقتين", "error");
+    return;
+  }
+  showLoading();
+  try {
+    if (supabaseConfig.enabled && supabaseClient) {
+      const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const { user } = await apiPost("/auth/supabase", { accessToken: session.access_token, purpose: "password_reset" });
+        localStorage.setItem("tajweed-user", JSON.stringify(user));
+        state.session = user;
+        await loadAll();
+        toast("تم تحديث كلمة المرور وتسجيل الدخول بنجاح.", "success");
+        window.go("home");
+      } else {
+        toast("تم تحديث كلمة المرور بنجاح. يرجى تسجيل الدخول.", "success");
+        state.authView = "login";
+        window._render();
+      }
+    } else {
+      toast("الإجراء غير صالح لتهيئة الدخول الحالية.", "error");
+    }
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    hideLoading();
+  }
 }

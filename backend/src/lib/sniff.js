@@ -1,15 +1,11 @@
 const fs = require('fs');
 
 const MAGIC = {
-  mp3:  [[0x49, 0x44, 0x33], [0xFF, 0xFB], [0xFF, 0xF3], [0xFF, 0xF2]],
-  aac:  [[0xFF, 0xF1], [0xFF, 0xF9]],
-  wav:  [[0x52, 0x49, 0x46, 0x46]],
   ogg:  [[0x4F, 0x67, 0x67, 0x53]],
   flac: [[0x66, 0x4C, 0x61, 0x43]],
   pdf:  [[0x25, 0x50, 0x44, 0x46]],
   jpeg: [[0xFF, 0xD8, 0xFF]],
   png:  [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
-  // webp removed — shares RIFF prefix with wav; handled before the loop
   gif:  [[0x47, 0x49, 0x46, 0x38]],
   zip:  [[0x50, 0x4B, 0x03, 0x04]],
   ole2: [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]],
@@ -24,18 +20,20 @@ function bytesMatch(buf, magic) {
 }
 
 function detectMP4(buf) {
-  if (buf.length < 12) return false;
-  if (buf[4] !== 0x66 || buf[5] !== 0x74 || buf[6] !== 0x79 || buf[7] !== 0x70) return false;
-  const size = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-  return size >= 8 && size <= 64;
+  if (buf.length < 8) return false;
+  return buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70;
 }
 
 function sniffBuffer(buf) {
   if (detectMP4(buf)) return 'mp4';
-  if (bytesMatch(buf, [0x52, 0x49, 0x46, 0x46]) && buf.length >= 12 &&
-      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) {
-    return 'webp';
+  if (bytesMatch(buf, [0x52, 0x49, 0x46, 0x46]) && buf.length >= 12) {
+    if (buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'webp';
+    if (buf[8] === 0x57 && buf[9] === 0x41 && buf[10] === 0x56 && buf[11] === 0x45) return 'wav';
   }
+  if (buf.length >= 3 && buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) return 'mp3';
+  if (buf.length >= 2 && buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0 && (buf[1] & 0x06) === 0x02) return 'mp3';
+  if (buf.length >= 2 && buf[0] === 0xFF && (buf[1] & 0xF6) === 0xF0) return 'aac';
+
   for (const [type, signatures] of Object.entries(MAGIC)) {
     for (const sig of signatures) {
       if (bytesMatch(buf, sig)) return type;

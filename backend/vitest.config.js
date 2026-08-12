@@ -1,7 +1,6 @@
-const path = require('path');
 const { defineConfig } = require('vitest/config');
 
-const testDbPath = path.join(__dirname, 'prisma/test.db');
+const testDatabaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/testdb';
 
 module.exports = defineConfig({
   test: {
@@ -12,7 +11,8 @@ module.exports = defineConfig({
     testTimeout: 15000,
     singleThread: true,
     env: {
-      DATABASE_URL: `file:${testDbPath}`,
+      DATABASE_URL: testDatabaseUrl,
+      DIRECT_URL: process.env.DIRECT_URL || testDatabaseUrl,
       JWT_SECRET: 'test-secret-for-testing-only',
       NODE_ENV: 'test',
     },

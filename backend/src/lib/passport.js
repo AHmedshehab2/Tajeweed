@@ -17,8 +17,15 @@ function isFacebookConfigured() {
 
 // Shared resolver: find or create a user from an OAuth profile.
 // Handles account linking (if email already exists, link the provider to that account).
+// SECURITY: We only auto-link when the OAuth provider has verified the email address.
+//   - Google: profile.emails[0].verified must be true
+//   - Facebook: email is never trusted for linking (Facebook does not reliably verify emails)
 async function resolveOAuthUser(provider, profile) {
-  const email = profile.emails && profile.emails[0] && profile.emails[0].value;
+  const emailEntry = profile.emails && profile.emails[0];
+  const email = emailEntry?.value;
+  // Only treat the email as verified if the provider explicitly flags it.
+  // Google includes `verified: true`; Facebook does not — treat Facebook emails as unverified.
+  const emailVerified = provider === 'google' ? Boolean(emailEntry?.verified) : false;
   const avatar = (profile.photos && profile.photos[0] && profile.photos[0].value) || null;
   const providerId = profile.id;
   const displayName = profile.displayName || (email ? email.split('@')[0] : 'مستخدم');
@@ -42,9 +49,13 @@ async function resolveOAuthUser(provider, profile) {
   const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || '').trim().toLowerCase();
   const shouldBeAdmin = !!(email && bootstrapEmail && email.toLowerCase() === bootstrapEmail);
 
-  // 2. Try to find an existing user by email — link the provider to the existing account
-  if (email) {
-    const existingByEmail = await prisma.user.findUnique({ where: { email } });
+  // 2. Try to find an existing user by email — link the provider to the existing account.
+  //    SECURITY: Only link if the OAuth provider has verified this email address.
+  //    This prevents account hijacking: an attacker cannot register an OAuth account
+  //    with someone else's email to gain access to their local account.
+  if (email && emailVerified) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existingByEmail) {
       const updated = await prisma.user.update({
         where: { id: existingByEmail.id },
@@ -59,11 +70,15 @@ async function resolveOAuthUser(provider, profile) {
     }
   }
 
-  // 3. Create a new user
+  // 3. Create a new user.
+  //    If email is present but unverified (e.g. Facebook), still store it — but we
+  //    did not link it to an existing account, so there is no hijack risk.
   const newUser = await prisma.user.create({
     data: {
       name: displayName,
-      email: email || `${provider}_${providerId}_${Date.now()}@oauth.placeholder`,
+      email: email
+        ? email.trim().toLowerCase()
+        : `${provider}_${providerId}_${Date.now()}@oauth.placeholder`,
       passwordHash: await bcrypt.hash(crypto.randomUUID(), 10),
       role: shouldBeAdmin ? 'ADMIN' : 'STUDENT',
       avatar,

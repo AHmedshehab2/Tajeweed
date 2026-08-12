@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
 }
 
 // SQLite has no native enum support, so Role/LessonState are plain strings.
@@ -36,6 +37,8 @@ model Chapter {
   description String?
   order       Int
   lessons     Lesson[]
+
+  @@unique([order])
 }
 
 model Lesson {
@@ -70,6 +73,8 @@ model Quarter {
   recordings Recording[]
   resources  Resource[]
   progress   QuarterProgress[]
+
+  @@unique([hizbId, number])
 }
 
 model Khutbah {
@@ -119,13 +124,32 @@ model Resource {
 }
 
 model Announcement {
-  id          String    @id @default(cuid())
-  title       String
-  body        String
-  target      String    @default("all")
-  priority    String    @default("normal") // normal | important
-  publishedAt DateTime  @default(now())
-  expiresAt   DateTime?
+  id                 String                      @id @default(cuid())
+  title              String
+  body               String
+  target             String                      @default("all")
+  priority           String                      @default("normal") // normal | important
+  publishedAt        DateTime                    @default(now())
+  expiresAt          DateTime?
+  isScheduleUpdate   Boolean                     @default(false)
+  scheduleChangeType String?                     // CANCELLED | ADDITIONAL_CLASS | MODIFIED
+  resolvedAt         DateTime?
+  affectedDays       ScheduleAnnouncementDay[]
+}
+
+model ScheduleAnnouncementDay {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int          // 1=Monday ... 7=Sunday
+}
+
+model TeacherAvailability {
+  id          String   @id @default(cuid())
+  dayOfWeek   Int      @unique // 1=Monday ... 7=Sunday
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model LessonProgress {
@@ -158,4 +182,14 @@ model ActivityEntry {
   title  String
   kind   String   @default("استماع")
   date   DateTime @default(now())
+}
+
+model MediaCleanupJob {
+  id          String    @id @default(cuid())
+  fileUrl     String?
+  cloudinaryId String?
+  attempts    Int       @default(0)
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
 }
