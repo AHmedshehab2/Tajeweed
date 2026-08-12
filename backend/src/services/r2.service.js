@@ -8,7 +8,29 @@ const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const BUCKET_NAME = process.env.R2_BUCKET_NAME;
 const PUBLIC_URL = (process.env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
 
-const isConfigured = !!(ACCOUNT_ID && ACCESS_KEY_ID && SECRET_ACCESS_KEY && BUCKET_NAME);
+const REQUIRED_R2_FIELDS = [
+  ['R2_ACCOUNT_ID', ACCOUNT_ID],
+  ['R2_ACCESS_KEY_ID', ACCESS_KEY_ID],
+  ['R2_SECRET_ACCESS_KEY', SECRET_ACCESS_KEY],
+  ['R2_BUCKET_NAME', BUCKET_NAME],
+  ['R2_PUBLIC_URL', PUBLIC_URL],
+];
+const isConfigured = REQUIRED_R2_FIELDS.every(([, value]) => Boolean(value));
+
+function getStorageConfigurationError({ required = false } = {}) {
+  const configuredCount = REQUIRED_R2_FIELDS.filter(([, value]) => Boolean(value)).length;
+  if (required && !isConfigured) {
+    return 'Durable R2 storage is required but not configured';
+  }
+  if (configuredCount > 0 && !isConfigured) {
+    const missing = REQUIRED_R2_FIELDS
+      .filter(([, value]) => !value)
+      .map(([name]) => name)
+      .join(', ');
+    return `R2 storage configuration is incomplete; missing: ${missing}`;
+  }
+  return null;
+}
 
 const client = isConfigured
   ? new S3Client({
@@ -52,4 +74,4 @@ async function destroy(key) {
   );
 }
 
-module.exports = { isConfigured, uploadBuffer, destroy };
+module.exports = { isConfigured, getStorageConfigurationError, uploadBuffer, destroy };
